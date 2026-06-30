@@ -1,0 +1,17 @@
+node_modules/
+dist/
+
+# サーバーのローカルデータ (KVストア)
+data/
+
+# 環境設定（機密情報を含む）
+.env
+.env.*
+!.env.template
+
+# Claude Code ローカル設定
+.claude/
+
+# npm pack 成果物
+*.tgz
+*@*.*.*

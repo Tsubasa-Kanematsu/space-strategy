@@ -1,0 +1,28 @@
+# Render Blueprint — space-strategy (ミッション解析共通基盤・運用版プロトタイプ)
+#
+# 単一 Web サービスでビルド済み SPA を配信しつつ /store /auth /api を提供する。
+# デプロイ手順:
+#   1. このリポジトリを GitHub に push
+#   2. Render Dashboard → New → Blueprint → リポジトリを選択
+#   3. APP_PASSWORD / JWT_SECRET を設定 (JWT_SECRET は generateValue で自動生成)
+services:
+  - type: web
+    name: space-strategy
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_PASSWORD
+        sync: false          # ダッシュボードで設定 (共有ログインパスワード)
+      - key: JWT_SECRET
+        generateValue: true  # Render が安全な値を自動生成
+      - key: DATA_DIR
+        value: /var/data     # 永続ディスクのマウント先
+    disk:
+      name: space-strategy-data
+      mountPath: /var/data
+      sizeGB: 1

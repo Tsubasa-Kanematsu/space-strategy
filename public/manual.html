@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>rocketDB ユーザーマニュアル</title>
+  <style>
+    :root {
+      --primary: #1558c0;
+      --primary-light: #e8f0fe;
+      --accent: #f9ab00;
+      --success: #34a853;
+      --danger: #ea4335;
+      --text: #212529;
+      --text-muted: #6c757d;
+      --border: #dee2e6;
+      --bg: #f8f9fa;
+      --sidebar-w: 260px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+      background: #fff;
+    }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: #1a1f2e;
+      color: #c8d0e0;
+      padding: 0;
+    }
+    .sidebar-header {
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-header .logo {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+    .sidebar-header .logo span { color: var(--accent); }
+    .sidebar-header .sub {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.45);
+      margin-top: 2px;
+    }
+    .toc { padding: 12px 0 24px; }
+    .toc-section {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      padding: 12px 16px 4px;
+    }
+    .toc a {
+      display: block;
+      padding: 5px 16px 5px 20px;
+      color: rgba(255,255,255,0.65);
+      text-decoration: none;
+      font-size: 0.82rem;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .toc a:hover { color: #fff; background: rgba(255,255,255,0.06); border-left-color: var(--accent); }
+    .toc a.sub { padding-left: 32px; font-size: 0.78rem; color: rgba(255,255,255,0.45); }
+    .toc a.sub:hover { color: rgba(255,255,255,0.8); }
+
+    /* ── Main ── */
+    .main {
+      flex: 1;
+      min-width: 0;
+      max-width: 860px;
+      padding: 40px 48px 80px;
+    }
+
+    /* ── Typography ── */
+    h1 { font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; color: var(--primary); margin-bottom: 8px; }
+    h2 {
+      font-size: 1.3rem; font-weight: 700; color: var(--primary);
+      margin: 48px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--primary-light);
+    }
+    h3 { font-size: 1rem; font-weight: 700; margin: 28px 0 10px; color: #343a40; }
+    h4 { font-size: 0.9rem; font-weight: 700; margin: 20px 0 8px; color: #495057; }
+    p { margin-bottom: 12px; }
+    ul, ol { margin: 8px 0 12px 20px; }
+    li { margin-bottom: 4px; }
+    code {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 0.82em;
+      background: #f1f3f5;
+      border: 1px solid #dee2e6;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    strong { font-weight: 600; }
+
+    /* ── Cover ── */
+    .cover {
+      background: linear-gradient(135deg, #1558c0 0%, #0d3a80 100%);
+      color: #fff;
+      padding: 40px 48px;
+      margin: -40px -48px 40px;
+    }
+    .cover h1 { color: #fff; font-size: 2.4rem; margin-bottom: 6px; }
+    .cover .version { font-size: 0.82rem; opacity: 0.65; margin-top: 6px; }
+    .cover .tagline { font-size: 1rem; opacity: 0.85; margin-top: 8px; font-weight: 400; }
+
+    /* ── Callout ── */
+    .callout {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+      font-size: 0.88rem;
+    }
+    .callout.info { border-color: var(--primary); background: var(--primary-light); }
+    .callout.warning { border-color: var(--accent); background: #fff8e1; }
+    .callout.tip { border-color: var(--success); background: #e6f4ea; }
+    .callout-title { font-weight: 700; margin-bottom: 4px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .callout.info .callout-title { color: var(--primary); }
+    .callout.warning .callout-title { color: #c04000; }
+    .callout.tip .callout-title { color: #1e6e3a; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.85rem; }
+    th { background: var(--bg); font-weight: 600; padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+    td { padding: 7px 12px; border: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: #fafbfc; }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 100px;
+      vertical-align: middle;
+    }
+    .badge-blue { background: #e8f4ff; color: #0d6efd; }
+    .badge-green { background: #e6f4ea; color: #1b5e20; }
+    .badge-amber { background: #fff8e1; color: #c04000; }
+    .badge-gray { background: #f1f3f5; color: #495057; }
+    .badge-purple { background: #f3e8ff; color: #7c3aed; }
+
+    /* ── Step list ── */
+    .steps { counter-reset: step; list-style: none; margin-left: 0; }
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: flex-start;
+    }
+    .steps li::before {
+      content: counter(step);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+
+    /* ── Section anchor offset ── */
+    section { scroll-margin-top: 20px; }
+
+    /* ── Screenshot placeholder ── */
+    .fig {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { padding: 24px 20px 60px; }
+      .cover { margin: -24px -20px 32px; padding: 28px 20px; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">rocket<span>DB</span></div>
+      <div class="sub">ユーザーマニュアル</div>
+    </div>
+    <div class="toc">
+      <div class="toc-section">はじめに</div>
+      <a href="#overview">概要</a>
+      <a href="#ui-layout">画面構成</a>
+      <a href="#data-model">データ構造</a>
+
+      <div class="toc-section">プロジェクト管理</div>
+      <a href="#project-list">プロジェクト一覧</a>
+      <a href="#project-create">プロジェクト作成</a>
+      <a href="#first-db">初回DB作成</a>
+      <a href="#project-export">エクスポート / インポート</a>
+
+      <div class="toc-section">ロケットDB</div>
+      <a href="#traceability">設計ツリー</a>
+      <a href="#db-create">DB 作成 / 派生</a>
+      <a href="#db-active">アクティブバージョン</a>
+
+      <div class="toc-section">コンポーネント構成タブ</div>
+      <a href="#mass-model">概要</a>
+      <a class="sub" href="#component-types">入力タイプ</a>
+      <a class="sub" href="#formula-engine">数式エンジン</a>
+      <a href="#data-views">データビュー切替</a>
+      <a class="sub" href="#view-mass">質量</a>
+      <a class="sub" href="#view-cg">重心</a>
+      <a class="sub" href="#view-inertia">慣性テンソル</a>
+      <a class="sub" href="#view-material">材質</a>
+      <a class="sub" href="#view-mounting">搭載位置</a>
+      <a href="#parent-cg-mode">親のCG表示モード</a>
+      <a href="#component-move">コンポーネントの移動</a>
+      <a href="#data-modals">データ変更モーダル</a>
+      <a href="#doc-attach">ドキュメント添付</a>
+      <a href="#mass-history">変更履歴と確認</a>
+      <a href="#parent-history">親の統合履歴</a>
+
+      <div class="toc-section">パラメータ</div>
+      <a href="#parameters">パラメータタブ</a>
+
+      <div class="toc-section">データファイル取り込み</div>
+      <a href="#data-import">概要</a>
+      <a class="sub" href="#data-import-jsoncsv">JSON / CSV</a>
+      <a class="sub" href="#data-import-step">STEP取り込み</a>
+      <a class="sub" href="#step-modes">モードA / モードB</a>
+      <a class="sub" href="#step-material">材質との連動</a>
+      <a class="sub" href="#step-apply">反映確認ダイアログ</a>
+      <a class="sub" href="#step-catia-tips">CATIA出力のコツ</a>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- Cover -->
+    <div class="cover">
+      <h1>rocketDB</h1>
+      <div class="tagline">ロケット設計データベース ユーザーマニュアル</div>
+      <div class="version">Version 1.1 &nbsp;·&nbsp; 2026年4月</div>
+      <div style="margin-top:16px;">
+        <a href="/training.html" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);color:#fff;text-decoration:none;padding:8px 18px;border-radius:6px;font-size:0.85rem;font-weight:600;border:1px solid rgba(255,255,255,0.25);">
+          🎓 ハンズオン講習資料を開く
+        </a>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 概要 ═══════════════ -->
+    <section id="overview">
+      <h2>概要</h2>
+      <p>
+        <strong>rocketDB</strong> はロケットの設計データを一元管理するためのWebアプリケーションです。
+        コンポーネント構成・質量配分・実質量・重心・慣性テンソルを体系的に記録し、
+        外部 CAD ツールと連携して設計データを自動取り込みすることができます。
+      </p>
+      <p>主な機能：</p>
+      <ul>
+        <li>プロジェクト単位でロケット設計データを管理</li>
+        <li>コンポーネント階層ツリーと数式エンジンによる質量計算</li>
+        <li>設計版（ロケットDB）のバージョン管理・派生</li>
+        <li>質量配分値と実質量の比較・差分管理</li>
+        <li>CAD データの自動取り込みと更新履歴管理</li>
+        <li>重心・慣性テンソルの記録</li>
+      </ul>
+    </section>
+
+    <!-- ═══════════════ 画面構成 ═══════════════ -->
+    <section id="ui-layout">
+      <h2>画面構成</h2>
+      <p>画面は以下の3つのエリアで構成されています。</p>
+
+      <table>
+        <thead><tr><th>エリア</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td><strong>トップバー</strong></td><td>サイドバー開閉ボタン・パンくずナビ・ヘルプ・ログアウトボタン</td></tr>
+          <tr><td><strong>サイドバー</strong></td><td>プロジェクト選択などのメインナビゲーション</td></tr>
+          <tr><td><strong>コンテンツエリア</strong></td><td>各機能の操作画面。DBを開いているときはタブが表示される</td></tr>
+        </tbody>
+      </table>
+
+      <h3>タブナビゲーション</h3>
+      <p>ロケットDBを開いているとき、コンテンツエリア上部に以下のタブが表示されます。</p>
+      <table>
+        <thead><tr><th>タブ名</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>コンポーネント構成</td><td>コンポーネントの階層ツリー / 数式 / 質量・重心・慣性・材質・搭載位置の表示と編集 / CAD取り込み</td></tr>
+          <tr><td>パラメータ</td><td>数式で使用する変数の定義</td></tr>
+        </tbody>
+      </table>
+      <div class="callout info">
+        <div class="callout-title">統合タブ</div>
+        以前は「質量評価」「重心」「慣性テンソル」がそれぞれ独立タブでしたが、現在はコンポーネント構成タブの<strong>データビュー切替</strong>に統合されています。詳しくは「データビュー切替」セクションを参照してください。
+      </div>
+    </section>
+
+    <!-- ═══════════════ データ構造 ═══════════════ -->
+    <section id="data-model">
+      <h2>データ構造</h2>
+      <p>rocketDB のデータは以下の階層構造になっています。</p>
+      <table>
+        <thead><tr><th>レベル</th><th>名称</th><th>説明</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>プロジェクト</td><td>ロケットの設計プロジェクト全体。複数のロケットDBを持つ</td></tr>
+          <tr><td>2</td><td>ロケットDB</td><td>設計データの1バージョン。コンポーネントとパラメータを持つ</td></tr>
+          <tr><td>3</td><td>コンポーネント</td><td>ロケットを構成する部品・構造体。ツリー形式で階層化</td></tr>
+          <tr><td>3</td><td>パラメータ</td><td>コンポーネントの数式で参照する変数</td></tr>
+        </tbody>
+      </table>
+      <div class="callout info">
+        <div class="callout-title">バージョン管理</div>
+        ロケットDBは<strong>派生</strong>機能により、既存バージョンをベースに新バージョンを作成できます。
+        親子関係は設計ツリーで視覚的に確認できます。
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- ═══════════════ プロジェクト ═══════════════ -->
+    <section id="project-list">
+      <h2>プロジェクト一覧</h2>
+      <p>
+        ログイン後の最初の画面です。登録済みのプロジェクトが一覧表示されます。
+        プロジェクト名または作成者でフィルタリングできます。
+      </p>
+      <h3>プロジェクトを開く</h3>
+      <p>プロジェクト名をクリックすると、そのプロジェクトの<strong>設計ツリー（トレーサビリティビュー）</strong>に移動します。</p>
+    </section>
+
+    <section id="project-create">
+      <h3>プロジェクト作成</h3>
+      <ol class="steps">
+        <li>プロジェクト一覧右上の <strong>「新規プロジェクト」</strong> ボタンをクリック</li>
+        <li>プロジェクト名（必須）・作成者名・メモを入力</li>
+        <li>「作成」をクリック</li>
+      </ol>
+      <div class="callout warning">
+        <div class="callout-title">注意</div>
+        プロジェクトを削除すると、配下のすべてのロケットDB・コンポーネント・パラメータも削除されます。
+      </div>
+    </section>
+
+    <section id="first-db">
+      <h3>初回DB作成</h3>
+      <p>
+        プロジェクトを新規作成した直後は、ロケットDBがまだ存在しないため設計ツリー画面に
+        「ロケットDBがありません」と表示されます。同じ画面上の <strong>「最初のDBを作成」</strong> ボタンから、
+        その場でDB名を入力するだけで最初のロケットDBを作成し、編集画面に遷移できます。
+      </p>
+      <ol class="steps">
+        <li>新規プロジェクト作成後、自動的に設計ツリーに移動</li>
+        <li>「最初のDBを作成」ボタンをクリック</li>
+        <li>DB名 (例: <code>DB v1.0</code>) を入力</li>
+        <li>そのまま「コンポーネント構成」画面が開く</li>
+      </ol>
+      <p>
+        もちろん、後から設計ツリーの「新規DB」ボタンや派生機能でDBを追加することもできます。
+      </p>
+    </section>
+
+    <section id="project-export">
+      <h3>エクスポート / インポート</h3>
+      <p>
+        プロジェクト一覧右上の <strong>「エクスポート」</strong> ボタンで、
+        すべてのプロジェクトデータを JSON ファイルとしてダウンロードできます。
+        バックアップや環境移行に使用してください。
+      </p>
+    </section>
+
+    <hr />
+
+    <!-- ═══════════════ ロケットDB ═══════════════ -->
+    <section id="traceability">
+      <h2>設計ツリー（トレーサビリティビュー）</h2>
+      <p>
+        プロジェクトを開くと表示される画面です。
+        ロケットDBのバージョン関係を<strong>SVGツリー</strong>で視覚的に確認できます。
+      </p>
+      <h3>操作</h3>
+      <table>
+        <thead><tr><th>操作</th><th>アクション</th></tr></thead>
+        <tbody>
+          <tr><td>ノードをクリック</td><td>そのDBを選択（右パネルに詳細表示）</td></tr>
+          <tr><td>ノードをダブルクリック</td><td>そのDBを開く</td></tr>
+          <tr><td>ドラッグ</td><td>ツリーをパン（移動）</td></tr>
+          <tr><td>マウスホイール</td><td>ズームイン / アウト</td></tr>
+          <tr><td>右クリック</td><td>コンテキストメニュー（編集・削除・アクティブ設定など）</td></tr>
+          <tr><td>「フィット」ボタン</td><td>ツリー全体が見えるよう自動調整</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <span class="badge badge-amber">★ アクティブ</span> と表示されているDBが、
+        プロジェクトの<strong>現在の正式バージョン</strong>です。
+      </p>
+    </section>
+
+    <section id="db-create">
+      <h3>DB 作成 / 派生</h3>
+      <table>
+        <thead><tr><th>操作</th><th>説明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>新規作成</strong></td>
+            <td>空のロケットDBを作成。コンポーネントやパラメータをゼロから定義する</td>
+          </tr>
+          <tr>
+            <td><strong>派生（Fork）</strong></td>
+            <td>既存DBをベースに新バージョンを作成。コンポーネント・パラメータが引き継がれ、親子関係が記録される</td>
+          </tr>
+          <tr>
+            <td><strong>独立コピー</strong></td>
+            <td>既存DBをコピーするが、親子関係は持たない</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout tip">
+        <div class="callout-title">推奨ワークフロー</div>
+        設計変更のたびに「派生」を使ってバージョンを作成することで、
+        変更履歴をツリーで追跡できます。
+      </div>
+    </section>
+
+    <section id="db-active">
+      <h3>アクティブバージョンの管理</h3>
+      <p>
+        各プロジェクトで1つのロケットDBを <strong>「アクティブバージョン」</strong> に設定できます。
+        設計ツリーでノードを右クリック → 「アクティブバージョンに設定」で変更できます。
+      </p>
+    </section>
+
+    <hr />
+
+    <!-- ═══════════════ コンポーネント構成 ═══════════════ -->
+    <section id="mass-model">
+      <h2>コンポーネント構成タブ</h2>
+      <p>
+        ロケットを構成するコンポーネント（部品・構造体）を<strong>階層ツリー形式</strong>で定義します。
+        各コンポーネントには質量計算式や変数名を設定します。
+      </p>
+      <p>コンポーネントは最大<strong>6階層</strong>まで定義できます。</p>
+
+      <h3>コンポーネントの列</h3>
+      <table>
+        <thead><tr><th>列名</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>名称 (paramName)</td><td>表示用の名前。例:「1段エンジン」</td></tr>
+          <tr><td>変数名 (varName)</td><td>数式で参照する変数名。英数字とアンダースコアのみ使用可。例: <code>m_eng1</code></td></tr>
+          <tr><td>入力タイプ</td><td>質量の計算方法（下表参照）</td></tr>
+          <tr><td>値 / 数式</td><td>数値または数式。リアルタイムで計算結果を表示</td></tr>
+          <tr><td>ステージ</td><td>all / payload / PBS / stage1〜4</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="component-types">
+      <h3>入力タイプ</h3>
+      <table>
+        <thead><tr><th>タイプ</th><th>説明</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blue">fixed</span></td><td>固定数値。直接値を入力する</td></tr>
+          <tr><td><span class="badge badge-blue">formula</span></td><td>数式。パラメータや他コンポーネントの変数名を使用可</td></tr>
+          <tr><td><span class="badge badge-gray">aggregate</span></td><td>子コンポーネントの合計（自動計算、値の入力不要）</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="formula-engine">
+      <h3>数式エンジン</h3>
+      <p>
+        <code>formula</code> タイプのコンポーネントには、JavaScript 互換の数式を記述できます。
+        以下の変数・関数が使用可能です。
+      </p>
+      <table>
+        <thead><tr><th>記述例</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td><code>isp1 * m_prop1 / 9.8</code></td><td>パラメータ <code>isp1</code> とコンポーネント <code>m_prop1</code> を参照</td></tr>
+          <tr><td><code>m_tank * 0.12</code></td><td>別コンポーネントの値に係数を掛ける</td></tr>
+          <tr><td><code>Math.sqrt(a * a + b * b)</code></td><td>JavaScript の数学関数も使用可</td></tr>
+        </tbody>
+      </table>
+      <div class="callout info">
+        <div class="callout-title">依存関係の自動追跡</div>
+        パラメータやコンポーネントの値を変更すると、
+        それを参照しているすべての数式が即座に再計算されます。
+      </div>
+
+      <h3>コンポーネントの追加</h3>
+      <ol class="steps">
+        <li>ツリー右上の <strong>「ルート追加」</strong> または各行の「+」ボタンで子追加</li>
+        <li>名称・変数名・入力タイプを設定</li>
+        <li>追加後にツリー上でインライン編集できます</li>
+      </ol>
+    </section>
+
+    <section id="data-views">
+      <h2>データビュー切替</h2>
+      <p>
+        コンポーネント構成タブのテーブルは、上部の<strong>データビュー切替ボタン群</strong>で
+        表示する列を切り替えられます。同じ階層ツリーを保ったまま、注目したいデータを選んで編集できます。
+      </p>
+      <table>
+        <thead><tr><th>ビュー</th><th>表示される列</th></tr></thead>
+        <tbody>
+          <tr><td><strong>質量</strong></td><td>計算質量・実質量・差分・エビデンス</td></tr>
+          <tr><td><strong>重心</strong></td><td>座標系 (全機/局所)・cgX / cgY / cgZ (m)</td></tr>
+          <tr><td><strong>慣性</strong></td><td>Ixx / Iyy / Izz / Ixy / Ixz / Iyz (kg·m²)</td></tr>
+          <tr><td><strong>材質</strong></td><td>材質名・密度・ヤング率</td></tr>
+          <tr><td><strong>搭載位置</strong></td><td>mountPos / mountEnd の X/Y/Z (m)</td></tr>
+        </tbody>
+      </table>
+      <p>
+        各セルをクリックすると、そのデータ専用の編集モーダル (詳細は「データ変更モーダル」参照) が開き、
+        値・記入者・エビデンス・添付ドキュメントを記録できます。
+      </p>
+    </section>
+
+    <section id="view-mass">
+      <h3>質量ビュー</h3>
+      <p>
+        計算質量 (数式エンジンによる) と実質量を並べて表示し、差分を色で可視化します。
+        親コンポーネントの実質量は、子の実質量を再帰的に積み上げた値が自動表示されます。
+      </p>
+      <p>実質量セルに <span class="badge badge-blue">📦 CAD</span> バッジが付いている場合、CADから自動取り込みされた値です。</p>
+    </section>
+
+    <section id="view-cg">
+      <h3>重心ビュー</h3>
+      <p>
+        各コンポーネントの重心座標 (m) を表示・編集します。
+        座標系として「全機 (機体原点基準)」または「局所 (搭載位置基準)」を選択でき、
+        計算エンジンは局所座標を自動的に全機座標に変換して親の重心積み上げを行います。
+      </p>
+      <p>
+        親 (集計) コンポーネントの重心は、子の質量加重平均で自動計算されます。
+        値の入力欄は表示されず、計算結果のみが表示されます。
+      </p>
+    </section>
+
+    <section id="view-inertia">
+      <h3>慣性ビュー</h3>
+      <p>
+        各コンポーネントの慣性テンソル (kg·m²) を記録します。
+        親コンポーネントの慣性テンソルは、平行軸の定理を使って子の慣性テンソルを積み上げた値が表示されます。
+      </p>
+    </section>
+
+    <section id="view-material">
+      <h3>材質ビュー</h3>
+      <p>
+        各コンポーネントの材質名・密度 (kg/m³) を記録します。材質プリセットから選ぶと
+        密度・ヤング率が自動入力されます。
+      </p>
+      <div class="callout tip">
+        <div class="callout-title">CAD取り込みとの連動</div>
+        ここで設定した材質密度は、STEPファイル取り込み時 (モードA: 体積×密度) のデフォルト密度として
+        自動的に使われます。あらかじめ材質を設定しておくと、CAD取り込みがスムーズになります。
+      </div>
+    </section>
+
+    <section id="view-mounting">
+      <h3>搭載位置ビュー</h3>
+      <p>
+        各コンポーネントの搭載位置 (始点と終点) を記録します。
+        親コンポーネントの搭載位置は、子のバウンディングボックスを集約した範囲が表示されます。
+      </p>
+      <table>
+        <thead><tr><th>列名</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>mountPosX / mountEndX</td><td>機軸方向 (X) の始点・終点 (m)</td></tr>
+          <tr><td>mountPosY / mountEndY</td><td>横方向 (Y) の始点・終点 (m)</td></tr>
+          <tr><td>mountPosZ / mountEndZ</td><td>横方向 (Z) の始点・終点 (m)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="parent-cg-mode">
+      <h3>親コンポーネントのCG表示モード切替</h3>
+      <p>
+        親 (集計) コンポーネントの重心は計算上は<strong>常に全機座標系</strong>で算出されますが、
+        表示モードとして「全機」と「局所」を切り替えられます。
+      </p>
+      <ul>
+        <li><strong>全機モード</strong>: 集計CG をそのまま機体原点基準で表示</li>
+        <li><strong>局所モード</strong>: 集計CG から親自身の搭載原点を引いた値を表示 (サブアセンブリ単位の確認に便利)</li>
+      </ul>
+      <p>
+        親コンポーネント行の「全機 / 局所」バッジ (⇄ アイコン付き) をクリックすると切り替わります。
+        切替は<strong>表示のみ</strong>の変更で、計算ロジックや子の重心積み上げには一切影響しません。
+      </p>
+    </section>
+
+    <section id="component-move">
+      <h3>コンポーネントの移動 (再ペアレント)</h3>
+      <p>
+        各行のアクション欄にある <strong>「親を変更」</strong> ボタン (
+        <code>bi-diagram-3</code> アイコン) をクリックすると、親選択モーダルが開きます。
+      </p>
+      <ol class="steps">
+        <li>移動したいコンポーネントの「親を変更」ボタンをクリック</li>
+        <li>新しい親コンポーネントを一覧から選択 (フルパスで表示)</li>
+        <li>「（ルートに移動）」を選ぶと最上位に移動</li>
+      </ol>
+      <div class="callout info">
+        <div class="callout-title">循環参照の防止</div>
+        自分自身と子孫コンポーネントは候補リストから自動的に除外されます。
+        親変更時は階層レベルが再計算され、子孫の階層も再帰的に更新されます。
+      </div>
+      <h4>並び替え</h4>
+      <p>同じ親の中での順序変更は、各行の上下矢印ボタンで行います。</p>
+    </section>
+
+    <section id="data-modals">
+      <h3>データ変更モーダル</h3>
+      <p>
+        データビューで対象のセルや編集アイコンをクリックすると、データ種別に応じた編集モーダルが開きます。
+        単一の値だけでなく、関連する複数の値・記入者・エビデンスをまとめて記録できます。
+      </p>
+      <table>
+        <thead><tr><th>モーダル</th><th>編集対象</th></tr></thead>
+        <tbody>
+          <tr><td><strong>重心 (CG) 編集</strong></td><td>座標系 (全機/局所) + cgX / cgY / cgZ</td></tr>
+          <tr><td><strong>慣性テンソル編集</strong></td><td>Ixx / Iyy / Izz / Ixy / Ixz / Iyz</td></tr>
+          <tr><td><strong>搭載位置編集</strong></td><td>X/Y/Z それぞれの始点・終点</td></tr>
+          <tr><td><strong>フィールド記録</strong></td><td>個別のフィールド値 (実質量、材質名、材質密度、ヤング率 など)</td></tr>
+        </tbody>
+      </table>
+      <p>各モーダルには共通で以下の入力欄があります:</p>
+      <ul>
+        <li><strong>記入者</strong>: 入力者の氏名 (変更履歴の changedBy として記録)</li>
+        <li><strong>エビデンス・備考</strong>: 算出根拠・参照ドキュメント名など</li>
+        <li><strong>📎 ドキュメントを添付</strong> (オプション): この変更に紐づくドキュメントを同時に登録</li>
+      </ul>
+    </section>
+
+    <section id="doc-attach">
+      <h3>ドキュメント添付</h3>
+      <p>
+        データ変更モーダル下部の <strong>「📎 ドキュメントを添付」</strong> チェックボックスを有効にすると、
+        図番・タイトル・URLなどの入力欄が展開されます。データ変更と同時にドキュメント情報を
+        コンポーネントの <code>documents</code> に追加できます。
+      </p>
+      <h4>種別に応じた番号ラベル</h4>
+      <p>「種別」を切り替えると、番号フィールドのラベルとプレースホルダーが自動的に変わります:</p>
+      <table>
+        <thead><tr><th>種別</th><th>番号ラベル</th><th>例</th></tr></thead>
+        <tbody>
+          <tr><td>図面</td><td>図番</td><td>STR-001 / Rev.C</td></tr>
+          <tr><td>仕様書</td><td>仕様書番号</td><td>SPEC-2026-01 / v1.2</td></tr>
+          <tr><td>レポート</td><td>レポート番号</td><td>TR-2026-003 / v1.2</td></tr>
+          <tr><td>その他</td><td>文書番号</td><td>DOC-001 / v1.2</td></tr>
+        </tbody>
+      </table>
+      <div class="callout tip">
+        <div class="callout-title">ワークフロー例</div>
+        「実質量を測定したので試験報告書TR-2026-003を根拠に記録」というケースでは、
+        実質量編集モーダルで値を入力 → ドキュメント添付をONにして種別「レポート」+ レポート番号を入力 →
+        記録、の1ステップで値と根拠書類を同時に登録できます。
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- ═══════════════ パラメータ ═══════════════ -->
+    <section id="parameters">
+      <h2>パラメータタブ</h2>
+      <p>
+        コンポーネントの数式で使用する<strong>変数</strong>を定義します。
+        Isp・推力・ΔV など、設計の入力値として扱うデータを登録します。
+      </p>
+      <table>
+        <thead><tr><th>列名</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>名称</td><td>表示用の名前。例:「1段 Isp（真空中）」</td></tr>
+          <tr><td>変数名 (varName)</td><td>数式で参照する変数名。例: <code>isp1</code></td></tr>
+          <tr><td>入力タイプ</td><td>fixed（固定値）/ formula（数式）</td></tr>
+          <tr><td>値 / 数式</td><td>数値または数式</td></tr>
+        </tbody>
+      </table>
+      <div class="callout tip">
+        <div class="callout-title">活用例</div>
+        Isp・推進剤密度・タンク肉厚係数などをパラメータとして登録しておくと、
+        コンポーネントの数式で <code>isp1</code> のように参照でき、
+        設計変更時は1か所の変更で全体が再計算されます。
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- ═══════════════ 変更履歴 ═══════════════ -->
+    <section id="mass-history">
+      <h2>変更履歴と確認ワークフロー</h2>
+      <p>
+        実質量・重心・慣性テンソル・材質・搭載位置などのデータを更新するたびに、
+        コンポーネントの<strong>変更履歴</strong>に1エントリが追加されます。
+        各行のアクション欄にある <strong>時計アイコン (🕐)</strong> をクリックすると、
+        統合変更履歴モーダルが開き、すべてのデータ変更が時系列で表示されます。
+      </p>
+      <h4>ステータス</h4>
+      <table>
+        <thead><tr><th>ステータス</th><th>意味</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-amber">入力済・未確認</span></td>
+            <td>値は入力されたが、担当者による確認がまだ</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">CAD取込済・未確認</span></td>
+            <td>CADから自動取り込みされたが、まだ確認されていない</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">✓ 確認済</span></td>
+            <td>担当者が確認し承認した値</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>確認操作</h4>
+      <ol class="steps">
+        <li>変更履歴モーダルを開く (時計アイコンをクリック)</li>
+        <li>未確認エントリの <strong>「確認」</strong> ボタンをクリック</li>
+        <li>確認者名を入力</li>
+      </ol>
+      <div class="callout tip">
+        <div class="callout-title">確認フロー推奨</div>
+        CAD 自動取り込み後は必ず担当者が数値を確認し「確認済」にすることを推奨します。
+      </div>
+    </section>
+
+    <section id="parent-history">
+      <h3>親コンポーネントの統合変更履歴</h3>
+      <p>
+        親 (集計) コンポーネントの変更履歴を開くと、<strong>子孫コンポーネント全部の履歴</strong>も
+        時系列でマージされて1つのテーブルに表示されます。
+      </p>
+      <ul>
+        <li>第1段全体の履歴を開けば、その下のエンジン・タンク・スカート…全部の変更が一覧できる</li>
+        <li>「コンポーネント」列が追加で表示され、どの子部品の変更かが識別できる</li>
+        <li>「確認」操作も親モーダルから子の履歴に対して直接実行可能</li>
+      </ul>
+      <div class="callout info">
+        <div class="callout-title">活用例</div>
+        ロケット全体の最近の変更を1画面で確認したいときは、ルートコンポーネントの変更履歴を開いてください。
+      </div>
+    </section>
+
+    <hr />
+
+    <!-- ═══════════════ データファイル取り込み ═══════════════ -->
+    <section id="data-import">
+      <h2>データファイル取り込み</h2>
+      <p>
+        コンポーネント構成タブの <strong>「CAD取り込み」</strong> ボタンから取り込みモーダルを開きます。
+        <code>.json</code> / <code>.csv</code> / <code>.stp</code> / <code>.step</code> ファイルを直接アップロードして、
+        各コンポーネントに質量・重心・慣性テンソル・搭載位置などのデータを反映できます。
+      </p>
+      <p>
+        取り込んだファイルはセットアップカードとして表示され、いつでも再反映できます。
+        反映された値には <span class="badge badge-blue">📦 CAD</span> バッジが表示され、
+        手入力との区別が一目でわかります。データファイル取り込みも通常の編集と同じく、
+        <strong>変更履歴 (記入者・エビデンス含む)</strong> として記録されます。
+      </p>
+    </section>
+
+    <section id="data-import-jsoncsv">
+      <h3>JSON / CSV ファイル取り込み</h3>
+      <p>
+        CAD ツールから書き出した JSON または CSV を取り込みます。単品・アセンブリの両方に対応。
+      </p>
+      <ol class="steps">
+        <li>「ファイルを追加」ボタンから <code>.json</code> または <code>.csv</code> を選択</li>
+        <li>ファイル内の各部品名と rocketDB コンポーネントを対応付け (名前一致は自動マッチ)</li>
+        <li>「データ反映」ボタンをクリックすると、各コンポーネントに質量・重心・慣性テンソル等が書き込まれる</li>
+      </ol>
+      <h4>JSONフォーマットの例</h4>
+      <p>単品:</p>
+      <pre><code>{ "mass": 45.6, "cg": {"x": 1.2, "y": 0, "z": 0}, "inertia": {...}, "material": {...} }</code></pre>
+      <p>アセンブリ:</p>
+      <pre><code>[
+  { "name": "Body Tube", "mass": 5.0, "cg": {...} },
+  { "name": "Nose Cone", "mass": 1.2, ... }
+]</code></pre>
+    </section>
+
+    <section id="data-import-step">
+      <h3>STEP ファイル取り込み</h3>
+      <p>
+        STEP (ISO 10303 / AP203 / AP214 / AP242) ファイルから、
+        アセンブリ階層と検証プロパティ (体積 / 質量 / 重心 / バウンディングボックス) を抽出します。
+        単一ファイル (<code>.stp</code> / <code>.step</code>) を直接取り込めます。
+      </p>
+      <ol class="steps">
+        <li>「ファイルを追加」から STEPファイルを選択</li>
+        <li>セットアップカードに <span class="badge badge-purple">STEP</span> バッジと部品数が表示される</li>
+        <li>「詳細設定 / 反映」ボタンを押すと <strong>STEP取り込みモーダル</strong>が開く</li>
+        <li>モーダル内でモード・密度・コンポーネント紐付けを設定し、「データ反映へ進む」</li>
+      </ol>
+      <h4>取得される情報</h4>
+      <table>
+        <thead><tr><th>情報</th><th>取得元</th><th>備考</th></tr></thead>
+        <tbody>
+          <tr><td>アセンブリ階層</td><td>NEXT_ASSEMBLY_USAGE_OCCURRENCE</td><td>親子関係を完全構築</td></tr>
+          <tr><td>体積</td><td>VOLUME_MEASURE</td><td>m³ に自動換算 (CATIA mm³ 出力に対応)</td></tr>
+          <tr><td>表面積</td><td>AREA_MEASURE (wetted area)</td><td>m² に自動換算</td></tr>
+          <tr><td>質量</td><td>MASS_MEASURE</td><td>CATIA で材質割当が必要</td></tr>
+          <tr><td>重心 (cgX/Y/Z)</td><td><code>centre point</code> (CARTESIAN_POINT)</td><td>絶対座標 (機体原点基準)</td></tr>
+          <tr><td>搭載位置 (mountPos / mountEnd)</td><td><code>bounding box corner point</code> (2点)</td><td>絶対座標</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="step-modes">
+      <h3>モードA / モードB</h3>
+      <p>STEP取り込みモーダル上部で、質量算出方法を2つから選べます。</p>
+      <table>
+        <thead><tr><th>モード</th><th>条件</th><th>動作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>A: 体積×密度</strong></td>
+            <td>STEPに体積データがあれば常に利用可</td>
+            <td>STEPの体積 × 密度 (材質プリセット or 数値) で質量を算出。<code>materialDensity</code> も同時に書き込み</td>
+          </tr>
+          <tr>
+            <td><strong>B: 検証プロパティ直接</strong></td>
+            <td>STEPに質量・重心が含まれている場合のみ有効</td>
+            <td>STEPの <code>MASS_MEASURE</code> / <code>centre point</code> をそのまま反映</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        モードBが利用可能な場合はデフォルトでBが選ばれます。利用できない場合は自動的にAになります。
+      </p>
+    </section>
+
+    <section id="step-material">
+      <h3>材質との連動</h3>
+      <p>
+        モードAでは、質量計算に使う密度を以下の優先順位で決定します:
+      </p>
+      <ol>
+        <li>各ノードの<strong>個別密度</strong> (材質プリセット選択 or 数値入力)</li>
+        <li>紐付け先コンポーネントの <strong><code>materialDensity</code></strong> (材質ビューで設定済みの値)</li>
+        <li>モーダル上部の<strong>共通密度</strong> (デフォルト 2810 = AL7075)</li>
+      </ol>
+      <div class="callout tip">
+        <div class="callout-title">材質を先に設定しておくと便利</div>
+        コンポーネントに材質名と密度を設定しておけば、STEP取り込み時にデフォルトとして自動使用されます。
+        コンポーネントの材質を変更すれば取り込み画面の表示も追従し、いつでも上書き可能です。
+      </div>
+      <h4>反映時の更新内容</h4>
+      <ul>
+        <li><strong>モードA</strong>: <code>actualMass</code> + <code>materialDensity</code> + (材質プルダウン選択時) <code>materialName</code></li>
+        <li><strong>モードB</strong>: <code>actualMass</code> + <code>cgX/Y/Z</code> + 慣性テンソル (含まれていれば)</li>
+        <li>両モード共通: <code>mountPosX/Y/Z</code> + <code>mountEndX/Y/Z</code> (検証プロパティの bbox がある場合)</li>
+        <li>両モード共通: <code>cgX/Y/Z</code> (centre point がある場合)</li>
+      </ul>
+    </section>
+
+    <section id="step-apply">
+      <h3>反映確認ダイアログ</h3>
+      <p>
+        STEP取り込みモーダルの「データ反映へ進む」ボタンを押すと、
+        <strong>反映情報の入力</strong>サブモーダルが開きます。手入力でデータを記録するときと同じく、
+        記入者とエビデンスを入力してから実際の反映が行われます。
+      </p>
+      <ol class="steps">
+        <li>記入者名を入力 (必須)</li>
+        <li>エビデンス・備考を入力 (任意。空欄なら自動生成テキストが入る)</li>
+        <li>「記録して反映する」をクリック</li>
+      </ol>
+      <p>
+        反映された値はそれぞれ <code>fieldHistory</code> / <code>actualMassHistory</code> に
+        「入力済 (未確認)」状態で記録されます。担当者が変更履歴モーダルから「確認」操作で承認できます。
+      </p>
+      <div class="callout info">
+        <div class="callout-title">搭載位置・重心の反映可否</div>
+        STEPに bbox や centre point が含まれていれば、モーダルの「搭載位置を反映する」「重心を反映する」
+        チェックボックスが自動的にONになります。手動でOFFにもできます。
+      </div>
+    </section>
+
+    <section id="step-catia-tips">
+      <h3>CATIA出力のコツ</h3>
+      <p>
+        CATIA V5 から Batch DXF/IGES/STEP ユーティリティでSTEPを出力する場合、以下の設定で
+        rocketDB が必要とする情報を含めて出力できます。
+      </p>
+      <h4>必須設定</h4>
+      <ul>
+        <li><strong>ツール → オプション → 互換性 → STEP</strong></li>
+        <li>「一般」 → ✅ <strong>検証プロパティ (VP)</strong> をON</li>
+        <li>「検証プロパティのパラメータ」 → ✅ <strong>形状検証プロパティ (GVP)</strong> を選択</li>
+        <li>「エクスポート」 → アプリケーションプロトコル: <strong>AP242</strong> (推奨)</li>
+      </ul>
+      <h4>出力フォーマット</h4>
+      <table>
+        <thead><tr><th>形式</th><th>圧縮</th><th>rocketDB対応</th></tr></thead>
+        <tbody>
+          <tr><td>STEP</td><td>なし</td><td>✅</td></tr>
+          <tr><td>STEPX (拡張)</td><td>なし</td><td>✅</td></tr>
+          <tr><td>STEPZ (圧縮)</td><td>あり (.stpz)</td><td>❌</td></tr>
+          <tr><td>STEPXZ (拡張+圧縮)</td><td>あり (.stpxz)</td><td>❌</td></tr>
+        </tbody>
+      </table>
+      <h4>質量を出力するには</h4>
+      <p>
+        体積・重心・バウンディングボックスは GVP がONなら自動で出力されますが、
+        <strong>質量</strong>は CATIA 上で各部品に <strong>材質を割り当てる</strong>必要があります。
+        メニュー「適用 → 材料の適用」 (<code>Shift+F1</code>) で材質を割り当ててから再エクスポートしてください。
+      </p>
+      <div class="callout tip">
+        <div class="callout-title">材質割当が難しい場合</div>
+        CATIA側で材質を割り当てる代わりに、rocketDBの<strong>モードA (体積×密度)</strong>で
+        密度を指定して質量を計算する方が手軽な場合もあります。STEPに体積さえあれば、
+        rocketDB側だけで完結します。
+      </div>
+      <h4>搭載位置の制約 (Master Datum 方式)</h4>
+      <p>
+        パラメトリック設計でマスタージオメトリ (Master Datum Model) パターンを使っている場合、
+        各部品の組立変換は単位行列になります。CATIAは検証プロパティとして
+        <code>bounding box corner point</code> を絶対座標で出力するため、rocketDB はそこから
+        正しい <code>mountPos</code> / <code>mountEnd</code> を取得できます。
+      </p>
+    </section>
+
+
+    <hr />
+
+    <section>
+      <h2>お問い合わせ・フィードバック</h2>
+      <p>バグ報告・機能要望は開発担当者までお知らせください。</p>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>rocketDB 講習資料</title>
+  <style>
+    :root {
+      --primary: #1558c0;
+      --primary-dark: #0d3a80;
+      --primary-light: #e8f0fe;
+      --accent: #f9ab00;
+      --success: #34a853;
+      --danger: #ea4335;
+      --purple: #7c3aed;
+      --text: #1a1a2e;
+      --text-muted: #6c757d;
+      --border: #dee2e6;
+      --bg: #f8f9fa;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* ── Slide Shell ── */
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: translateX(40px);
+      overflow-y: auto;
+    }
+    .slide.active {
+      opacity: 1;
+      pointer-events: all;
+      transform: translateX(0);
+    }
+    .slide.exit {
+      opacity: 0;
+      transform: translateX(-40px);
+    }
+
+    /* ── Progress bar ── */
+    .progress-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: rgba(255,255,255,0.1);
+      z-index: 100;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #ff6b6b);
+      transition: width 0.3s ease;
+    }
+
+    /* ── Navigation ── */
+    .nav {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(10,12,20,0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 100px;
+      padding: 8px 16px;
+      z-index: 100;
+    }
+    .nav-btn {
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.2); }
+    .nav-btn:disabled { opacity: 0.3; cursor: default; }
+    .nav-counter {
+      color: rgba(255,255,255,0.7);
+      font-size: 0.82rem;
+      min-width: 60px;
+      text-align: center;
+    }
+    .nav-jump {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .nav-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none;
+    }
+    .nav-dot.active { background: var(--accent); width: 20px; border-radius: 3px; }
+
+    /* ── Slide Layouts ── */
+    /* Cover */
+    .slide-cover {
+      background: linear-gradient(145deg, #0d1b4f 0%, #1a0533 50%, #0d1b4f 100%);
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 48px;
+    }
+    .slide-cover .kicker {
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .slide-cover h1 {
+      font-size: 4rem;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: -2px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+    .slide-cover h1 span { color: var(--accent); }
+    .slide-cover .subtitle {
+      font-size: 1.2rem;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 40px;
+      font-weight: 300;
+    }
+    .slide-cover .meta {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.3);
+    }
+    .cover-deco {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    /* Section header */
+    .slide-section {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 48px;
+    }
+    .slide-section .section-num {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .slide-section h2 {
+      font-size: 2.8rem;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+    }
+    .slide-section .desc {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.65);
+      max-width: 480px;
+    }
+
+    /* Content */
+    .slide-content {
+      background: #fff;
+      padding: 56px 80px 100px;
+    }
+    .slide-content h2 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+      margin-bottom: 28px;
+    }
+    .slide-content h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #343a40;
+      margin: 24px 0 10px;
+    }
+    .slide-content p {
+      color: #495057;
+      line-height: 1.75;
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+    }
+
+    /* Two-col */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-top: 8px;
+    }
+    .two-col-3-2 {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 32px;
+    }
+
+    /* Card */
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      background: #fff;
+    }
+    .card.primary { border-color: var(--primary-light); background: var(--primary-light); }
+    .card.success { border-color: #c3e6cb; background: #f0fdf4; }
+    .card.warning { border-color: #fde68a; background: #fffbeb; }
+    .card.dark { background: #1a1f2e; color: #e2e8f0; border-color: #2d3748; }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .card.dark .card-title { color: rgba(255,255,255,0.4); }
+
+    /* Steps */
+    .steps { list-style: none; counter-reset: step; }
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 14px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      align-items: flex-start;
+      font-size: 0.92rem;
+    }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before {
+      content: counter(step);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+    .steps li .step-body { flex: 1; }
+    .steps li .step-note {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 100px;
+      vertical-align: middle;
+    }
+    .badge-blue { background: #e8f4ff; color: #0d6efd; }
+    .badge-green { background: #e6f4ea; color: #1b5e20; }
+    .badge-amber { background: #fff8e1; color: #c04000; }
+    .badge-red { background: #fce8e6; color: #c62828; }
+    .badge-gray { background: #f1f3f5; color: #495057; }
+    .badge-purple { background: #f3e8ff; color: var(--purple); }
+
+    /* Callout */
+    .callout {
+      border-left: 3px solid;
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      margin: 14px 0;
+      font-size: 0.88rem;
+    }
+    .callout.info { border-color: var(--primary); background: var(--primary-light); color: #1a3a7e; }
+    .callout.warning { border-color: var(--accent); background: #fffbeb; color: #7c4a00; }
+    .callout.tip { border-color: var(--success); background: #f0fdf4; color: #1e5631; }
+    .callout-label { font-weight: 700; margin-bottom: 2px; font-size: 0.78rem; text-transform: uppercase; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 12px 0; }
+    th { background: var(--bg); font-weight: 600; padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+    td { padding: 7px 12px; border: 1px solid var(--border); }
+    tr:nth-child(even) td { background: #fafbfc; }
+
+    /* Code */
+    code {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 0.82em;
+      background: #1a1f2e;
+      color: #7dd3fc;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .code-block {
+      background: #1a1f2e;
+      color: #e2e8f0;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 0.85rem;
+      padding: 16px 20px;
+      border-radius: 8px;
+      line-height: 1.6;
+      margin: 12px 0;
+    }
+    .code-block .comment { color: #64748b; }
+    .code-block .kw { color: var(--accent); }
+    .code-block .val { color: #86efac; }
+
+    /* Big number */
+    .big-num {
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--primary);
+      line-height: 1;
+    }
+    .big-num-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* Icon */
+    .icon-box {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+    .icon-box.blue { background: var(--primary-light); }
+    .icon-box.green { background: #e6f4ea; }
+    .icon-box.amber { background: #fff8e1; }
+    .icon-box.purple { background: #f3e8ff; }
+
+    /* Feature row */
+    .feat-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .feat-row:last-child { border-bottom: none; }
+    .feat-body h4 { font-size: 0.92rem; font-weight: 700; margin-bottom: 3px; }
+    .feat-body p { font-size: 0.82rem; color: var(--text-muted); margin: 0; }
+
+    /* Check list */
+    .checklist { list-style: none; }
+    .checklist li {
+      display: flex;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 0.9rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist li::before {
+      content: '□';
+      font-size: 1.1rem;
+      color: var(--primary);
+      flex-shrink: 0;
+      line-height: 1.2;
+    }
+
+    /* Exercise card */
+    .exercise {
+      background: linear-gradient(135deg, #0d1b4f 0%, #1a0533 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-top: 20px;
+    }
+    .exercise .ex-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .exercise h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 12px; }
+    .exercise ol { margin-left: 20px; }
+    .exercise ol li { font-size: 0.88rem; color: rgba(255,255,255,0.8); margin-bottom: 6px; line-height: 1.5; }
+
+    /* TOC slide */
+    .toc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .toc-item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toc-item:hover { border-color: var(--primary); background: var(--primary-light); }
+    .toc-item .num {
+      font-size: 1.2rem;
+      font-weight: 900;
+      color: var(--primary);
+      opacity: 0.3;
+      min-width: 28px;
+    }
+    .toc-item .title { font-size: 0.88rem; font-weight: 600; }
+    .toc-item .sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
+
+    /* Diagram */
+    .diagram {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    .diagram-tree {
+      font-family: monospace;
+      font-size: 0.85rem;
+      text-align: left;
+      line-height: 1.8;
+      color: var(--text);
+    }
+
+    /* Keyboard key */
+    kbd {
+      display: inline-block;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.8em;
+      font-family: inherit;
+    }
+
+    ul { margin-left: 20px; }
+    li { margin-bottom: 4px; font-size: 0.92rem; }
+
+    @media (max-width: 900px) {
+      .two-col, .two-col-3-2, .toc-grid { grid-template-columns: 1fr; }
+      .slide-content { padding: 32px 24px 100px; }
+      .slide-cover h1 { font-size: 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+
+<div class="deck" id="deck">
+
+  <!-- ── 0: Cover ── -->
+  <div class="slide slide-cover active" data-idx="0">
+    <div class="cover-deco" style="width:600px;height:600px;background:#1558c0;top:-200px;left:-100px;"></div>
+    <div class="cover-deco" style="width:400px;height:400px;background:#f9ab00;bottom:-100px;right:-100px;"></div>
+    <div class="kicker">ハンズオン講習資料</div>
+    <h1>rocket<span>DB</span></h1>
+    <div class="subtitle">ロケット設計データベース 使い方トレーニング</div>
+    <div style="display:flex;gap:32px;justify-content:center;margin-bottom:40px;">
+      <div style="text-align:center;">
+        <div style="font-size:2rem;font-weight:900;color:#fff;">7</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);">セクション</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:2rem;font-weight:900;color:#fff;">20</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);">スライド</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:2rem;font-weight:900;color:#fff;">60</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);">分</div>
+      </div>
+    </div>
+    <div class="meta">← → キーまたは下部ボタンでスライドを移動</div>
+  </div>
+
+  <!-- ── 1: 目次 ── -->
+  <div class="slide slide-content" data-idx="1">
+    <h2>今日学ぶこと</h2>
+    <div class="toc-grid">
+      <div class="toc-item" onclick="goTo(3)">
+        <div class="num">1</div>
+        <div><div class="title">プロジェクト管理</div><div class="sub">作成・検索・エクスポート</div></div>
+      </div>
+      <div class="toc-item" onclick="goTo(5)">
+        <div class="num">2</div>
+        <div><div class="title">ロケットDB と設計ツリー</div><div class="sub">バージョン管理・派生</div></div>
+      </div>
+      <div class="toc-item" onclick="goTo(7)">
+        <div class="num">3</div>
+        <div><div class="title">コンポーネント構成</div><div class="sub">階層ツリー・数式エンジン</div></div>
+      </div>
+      <div class="toc-item" onclick="goTo(10)">
+        <div class="num">4</div>
+        <div><div class="title">パラメータ</div><div class="sub">変数定義・数式連携</div></div>
+      </div>
+      <div class="toc-item" onclick="goTo(12)">
+        <div class="num">5</div>
+        <div><div class="title">質量評価</div><div class="sub">実質量・差分管理・確認フロー</div></div>
+      </div>
+      <div class="toc-item" onclick="goTo(15)">
+        <div class="num">6</div>
+        <div><div class="title">重心・慣性テンソル</div><div class="sub">座標データの記録</div></div>
+      </div>
+      <div class="toc-item" onclick="goTo(17)">
+        <div class="num">7</div>
+        <div><div class="title">CAD 連携</div><div class="sub">JSON 取り込み・パラメトリック</div></div>
+      </div>
+      <div class="toc-item" onclick="goTo(21)">
+        <div class="num">—</div>
+        <div><div class="title">まとめ・チェックリスト</div><div class="sub">習得確認</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2: rocketDB とは ── -->
+  <div class="slide slide-content" data-idx="2">
+    <h2>rocketDB とは</h2>
+    <div class="two-col">
+      <div>
+        <p>ロケット設計データを<strong>一元管理するためのWebツール</strong>です。</p>
+        <div class="feat-row">
+          <div class="icon-box blue">📊</div>
+          <div class="feat-body"><h4>質量管理</h4><p>設計値と実測値を並べて差分を即座に可視化</p></div>
+        </div>
+        <div class="feat-row">
+          <div class="icon-box green">🌲</div>
+          <div class="feat-body"><h4>バージョン管理</h4><p>設計変更履歴をツリーで追跡</p></div>
+        </div>
+        <div class="feat-row">
+          <div class="icon-box amber">🔗</div>
+          <div class="feat-body"><h4>CAD 連携</h4><p>外部 CAD のデータを自動取り込み</p></div>
+        </div>
+        <div class="feat-row">
+          <div class="icon-box purple">📝</div>
+          <div class="feat-body"><h4>確認フロー</h4><p>実質量の更新履歴と担当者確認を記録</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="card dark">
+          <div class="card-title">データ構造</div>
+          <div class="diagram-tree" style="color:#e2e8f0;">
+プロジェクト<br>
+　├── ロケットDB（バージョンA）<br>
+　│&nbsp;&nbsp;&nbsp;&nbsp;├── コンポーネント（ツリー）<br>
+　│&nbsp;&nbsp;&nbsp;&nbsp;└── パラメータ<br>
+　└── ロケットDB（バージョンB）<br>
+　&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── コンポーネント（引継）
+          </div>
+        </div>
+        <div class="callout tip" style="margin-top:12px;">
+          <div class="callout-label">💡 ポイント</div>
+          1つのプロジェクトに複数バージョンの設計DBを持てます。
+          バージョン間の親子関係は自動で管理されます。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3: Section — プロジェクト ── -->
+  <div class="slide slide-section" data-idx="3">
+    <div class="section-num">Section 1</div>
+    <h2>プロジェクト管理</h2>
+    <div class="desc">設計プロジェクトの作成・検索・データ保全</div>
+  </div>
+
+  <!-- ── 4: プロジェクト操作 ── -->
+  <div class="slide slide-content" data-idx="4">
+    <h2>プロジェクトの作成と管理</h2>
+    <div class="two-col">
+      <div>
+        <h3>プロジェクトを作成する</h3>
+        <ol class="steps">
+          <li><div class="step-body">サイドバーの「プロジェクト」をクリック</div></li>
+          <li><div class="step-body">「新規プロジェクト」ボタンをクリック</div></li>
+          <li><div class="step-body">プロジェクト名（必須）・作成者名・メモを入力</div></li>
+          <li><div class="step-body">「作成」をクリック</div></li>
+        </ol>
+        <h3 style="margin-top:24px;">フィルター機能</h3>
+        <p>一覧上部の検索ボックスで<strong>プロジェクト名</strong>または<strong>作成者名</strong>で絞り込めます。</p>
+      </div>
+      <div>
+        <div class="card warning">
+          <div class="card-title">⚠ 削除について</div>
+          <p style="font-size:0.88rem;margin:0;">プロジェクトを削除すると、配下のすべてのロケットDB・コンポーネント・パラメータが<strong>完全に削除</strong>されます。</p>
+        </div>
+        <div style="margin-top:16px;">
+          <h3>バックアップ（エクスポート）</h3>
+          <p style="font-size:0.88rem;">一覧右上の「エクスポート」ボタンで全データを <code>rocketDB-backup-YYYY-MM-DD.json</code> としてダウンロードできます。</p>
+        </div>
+        <div class="exercise">
+          <div class="ex-label">🖊 練習</div>
+          <h3>プロジェクトを作成してみよう</h3>
+          <ol>
+            <li>プロジェクト名: 「研修用ロケット」</li>
+            <li>作成者名: 自分の名前</li>
+            <li>メモ: 「研修用サンプルデータ」</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 5: Section — ロケットDB ── -->
+  <div class="slide slide-section" data-idx="5">
+    <div class="section-num">Section 2</div>
+    <h2>ロケットDB と設計ツリー</h2>
+    <div class="desc">バージョン管理・派生・アクティブ設定</div>
+  </div>
+
+  <!-- ── 6: 設計ツリー ── -->
+  <div class="slide slide-content" data-idx="6">
+    <h2>設計ツリー（トレーサビリティビュー）</h2>
+    <div class="two-col-3-2">
+      <div>
+        <p>プロジェクトを開くと<strong>設計ツリー</strong>が表示されます。DBバージョンの親子関係を視覚的に確認できます。</p>
+        <table>
+          <thead><tr><th>操作</th><th>動作</th></tr></thead>
+          <tbody>
+            <tr><td>ノードをクリック</td><td>詳細を右パネルに表示</td></tr>
+            <tr><td>ノードをダブルクリック</td><td>そのDBを開く</td></tr>
+            <tr><td>ドラッグ</td><td>ツリーをパン（移動）</td></tr>
+            <tr><td>ホイール</td><td>ズームイン / アウト</td></tr>
+            <tr><td>右クリック</td><td>コンテキストメニュー</td></tr>
+          </tbody>
+        </table>
+        <div class="exercise">
+          <div class="ex-label">🖊 練習</div>
+          <h3>ロケットDBを作成・派生させよう</h3>
+          <ol>
+            <li>「新規ロケットDB」→ 名前「Rev.A」で作成</li>
+            <li>Rev.A を右クリック → 「派生」→ 名前「Rev.B」</li>
+            <li>Rev.A を「アクティブバージョンに設定」</li>
+          </ol>
+        </div>
+      </div>
+      <div>
+        <div class="card primary">
+          <div class="card-title">DBの作り方 3種類</div>
+          <div class="feat-row" style="padding:8px 0;">
+            <div class="icon-box blue" style="width:36px;height:36px;font-size:1rem;">✨</div>
+            <div class="feat-body"><h4>新規作成</h4><p>空から定義する</p></div>
+          </div>
+          <div class="feat-row" style="padding:8px 0;">
+            <div class="icon-box green" style="width:36px;height:36px;font-size:1rem;">🌿</div>
+            <div class="feat-body"><h4>派生（Fork）</h4><p>既存DBをベースに変更。<strong>親子関係</strong>が記録される</p></div>
+          </div>
+          <div class="feat-row" style="padding:8px 0;border-bottom:none;">
+            <div class="icon-box amber" style="width:36px;height:36px;font-size:1rem;">📋</div>
+            <div class="feat-body"><h4>独立コピー</h4><p>コピーするが親子関係なし</p></div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:12px 16px;background:#fff8e1;border-radius:8px;font-size:0.85rem;border:1px solid #fde68a;">
+          <strong>★ アクティブバージョン</strong>とは、プロジェクトの現在の正式設計版です。
+          1プロジェクトに1つだけ設定できます。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 7: Section — コンポーネント ── -->
+  <div class="slide slide-section" data-idx="7">
+    <div class="section-num">Section 3</div>
+    <h2>コンポーネント構成</h2>
+    <div class="desc">階層ツリーと数式エンジンで質量を定義する</div>
+  </div>
+
+  <!-- ── 8: コンポーネント基本 ── -->
+  <div class="slide slide-content" data-idx="8">
+    <h2>コンポーネントの定義</h2>
+    <div class="two-col">
+      <div>
+        <p>「コンポーネント構成」タブでロケットの部品構造を<strong>最大6階層</strong>のツリーで定義します。</p>
+        <table>
+          <thead><tr><th>列</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>名称</td><td>表示名 例: <code>1段エンジン</code></td></tr>
+            <tr><td>変数名</td><td>数式で参照 例: <code>m_eng1</code></td></tr>
+            <tr><td>入力タイプ</td><td>fixed / formula / aggregate</td></tr>
+            <tr><td>値/数式</td><td>数値または計算式</td></tr>
+            <tr><td>ステージ</td><td>all / payload / stage1〜4</td></tr>
+          </tbody>
+        </table>
+        <h3>入力タイプ</h3>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div><span class="badge badge-blue">fixed</span> 固定値をそのまま入力</div>
+          <div><span class="badge badge-blue">formula</span> 他の変数を使った数式</div>
+          <div><span class="badge badge-gray">aggregate</span> 子の合計（自動）</div>
+        </div>
+      </div>
+      <div>
+        <div class="card dark">
+          <div class="card-title">ツリー構成例</div>
+          <div class="diagram-tree">
+<span style="color:#86efac;">ロケット全体</span> <span style="color:#64748b;">[aggregate]</span><br>
+　├── <span style="color:#7dd3fc;">1段機体</span> <span style="color:#64748b;">[aggregate]</span><br>
+　│&nbsp;&nbsp;&nbsp;├── エンジン <span style="color:#64748b;">[fixed]</span> 85 kg<br>
+　│&nbsp;&nbsp;&nbsp;├── タンク <span style="color:#64748b;">[formula]</span><br>
+　│&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;→ <span style="color:#fbbf24;">isp1 * 0.05</span><br>
+　│&nbsp;&nbsp;&nbsp;└── 推進剤 <span style="color:#64748b;">[fixed]</span> 420 kg<br>
+　└── <span style="color:#7dd3fc;">フェアリング</span> <span style="color:#64748b;">[fixed]</span> 30 kg
+          </div>
+        </div>
+        <div class="callout info" style="margin-top:12px;">
+          <div class="callout-label">💡 aggregate の使い方</div>
+          親コンポーネントを aggregate にすると、子の合計が自動計算されます。
+          ルートに置くと機体全体の合計質量が得られます。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 9: 数式エンジン ── -->
+  <div class="slide slide-content" data-idx="9">
+    <h2>数式エンジン</h2>
+    <div class="two-col">
+      <div>
+        <p>入力タイプ <span class="badge badge-blue">formula</span> のコンポーネントに数式を記述できます。<br/>パラメータや他コンポーネントの変数名を使用可能です。</p>
+        <div class="code-block">
+<span class="comment">// パラメータ isp1 を使う</span><br>
+<span class="kw">isp1</span> * m_prop1 / 9.8<br><br>
+<span class="comment">// 別コンポーネントを参照</span><br>
+m_tank * <span class="val">0.12</span><br><br>
+<span class="comment">// 数学関数も使える</span><br>
+Math.sqrt(a * a + b * b)
+        </div>
+        <div class="callout tip">
+          <div class="callout-label">💡 自動再計算</div>
+          パラメータやコンポーネントの値を変えると、それを参照しているすべての数式が<strong>即座に再計算</strong>されます。
+        </div>
+      </div>
+      <div>
+        <div class="exercise">
+          <div class="ex-label">🖊 練習</div>
+          <h3>コンポーネントツリーを作ろう</h3>
+          <ol>
+            <li>ルートに「ロケット全体」(aggregate) を追加</li>
+            <li>子に「1段エンジン」(fixed) 85 kg を追加</li>
+            <li>子に「推進剤」(fixed) 420 kg を追加</li>
+            <li>子に「タンク」(formula) <code>m_prop * 0.08</code> を追加</li>
+            <li>合計質量が自動計算されることを確認</li>
+          </ol>
+        </div>
+        <div class="callout warning" style="margin-top:12px;">
+          <div class="callout-label">⚠ 変数名のルール</div>
+          英数字とアンダースコアのみ使用可。先頭は英字。<br/>例: <code>m_eng1</code> ✅ &nbsp; <code>1st-eng</code> ❌
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 10: Section — パラメータ ── -->
+  <div class="slide slide-section" data-idx="10">
+    <div class="section-num">Section 4</div>
+    <h2>パラメータ</h2>
+    <div class="desc">設計変数を定義して数式から参照する</div>
+  </div>
+
+  <!-- ── 11: パラメータ ── -->
+  <div class="slide slide-content" data-idx="11">
+    <h2>パラメータの使い方</h2>
+    <div class="two-col">
+      <div>
+        <p>「パラメータ」タブで設計の入力変数を定義します。Isp・推力・ΔVなど、<strong>1か所変更すれば全体に反映</strong>される値をパラメータとして管理します。</p>
+        <table>
+          <thead><tr><th>列</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>名称</td><td>例: 「1段 Isp（真空中）」</td></tr>
+            <tr><td>変数名</td><td>数式で参照 例: <code>isp1</code></td></tr>
+            <tr><td>入力タイプ</td><td>fixed / formula</td></tr>
+            <tr><td>値/数式</td><td>数値 or 計算式</td></tr>
+          </tbody>
+        </table>
+        <h3>パラメータを使うメリット</h3>
+        <ul>
+          <li>設計値を1か所で管理できる</li>
+          <li>変更時にすべての依存数式が即再計算</li>
+          <li>感度解析に活用できる</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card primary">
+          <div class="card-title">活用例</div>
+          <div class="code-block" style="font-size:0.78rem;">
+<span class="comment">// パラメータ定義</span><br>
+isp1 = <span class="val">315</span>  <span class="comment">// 1段 Isp [s]</span><br>
+rho_prop = <span class="val">830</span> <span class="comment">// 推進剤密度 [kg/m³]</span><br><br>
+<span class="comment">// コンポーネント数式で参照</span><br>
+m_tank = m_prop * <span class="val">0.08</span><br>
+t_burn = m_prop / (thrust / (isp1 * <span class="val">9.8</span>))
+          </div>
+        </div>
+        <div class="exercise">
+          <div class="ex-label">🖊 練習</div>
+          <h3>パラメータを追加しよう</h3>
+          <ol>
+            <li>名称「1段 Isp」、変数名 <code>isp1</code>、値 315 を追加</li>
+            <li>コンポーネントのタンク質量に <code>m_prop * isp1 / 100000</code> を設定</li>
+            <li><code>isp1</code> を変えてタンク質量が変わることを確認</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 12: Section — 質量評価 ── -->
+  <div class="slide slide-section" data-idx="12">
+    <div class="section-num">Section 5</div>
+    <h2>質量評価</h2>
+    <div class="desc">実質量の記録・差分管理・確認ワークフロー</div>
+  </div>
+
+  <!-- ── 13: 質量評価基本 ── -->
+  <div class="slide slide-content" data-idx="13">
+    <h2>質量評価タブの使い方</h2>
+    <div class="two-col">
+      <div>
+        <p>「計算質量（設計値）」と「実質量（実測値）」を並べて差分を管理します。</p>
+        <table>
+          <thead><tr><th>列</th><th>説明</th></tr></thead>
+          <tbody>
+            <tr><td>計算質量</td><td>数式エンジンによる設計値</td></tr>
+            <tr><td>実質量</td><td>手入力または CAD から取り込んだ実測値</td></tr>
+            <tr><td>差分</td><td>計算 − 実質量。<span style="color:var(--danger);">正＝超過（赤）</span> / <span style="color:var(--success);">負＝余裕（緑）</span></td></tr>
+          </tbody>
+        </table>
+        <h3>実質量を入力する</h3>
+        <ol class="steps">
+          <li><div class="step-body">末端コンポーネントの実質量セルをクリック</div></li>
+          <li><div class="step-body">値 (kg) とエビデンスを入力</div></li>
+          <li><div class="step-body">記入者名を入力して「記録」をクリック</div></li>
+        </ol>
+        <div class="callout info">
+          <div class="callout-label">💡</div>
+          親コンポーネントの実質量は子の合計として<strong>自動計算</strong>されます。
+        </div>
+      </div>
+      <div>
+        <div class="exercise">
+          <div class="ex-label">🖊 練習</div>
+          <h3>実質量を記録しよう</h3>
+          <ol>
+            <li>質量評価タブを開く</li>
+            <li>「1段エンジン」の実質量セルをクリック</li>
+            <li>値: 87.5 kg、エビデンス: 「計測報告書 Rev.1」を入力</li>
+            <li>記入者名を入力して記録</li>
+            <li>差分の色を確認する</li>
+          </ol>
+        </div>
+        <div style="margin-top:12px;">
+          <div><span class="badge badge-blue">📦 CAD</span> = CAD データから自動取り込みされた値</div>
+          <div style="margin-top:6px;"><span class="badge badge-amber">未確認</span> = まだ担当者確認が必要な値</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 14: 更新履歴・確認フロー ── -->
+  <div class="slide slide-content" data-idx="14">
+    <h2>更新履歴と確認ワークフロー</h2>
+    <div class="two-col">
+      <div>
+        <p>実質量を更新するたびに<strong>履歴エントリ</strong>が自動記録されます。<br/>時計アイコン 🕐 をクリックして履歴を確認できます。</p>
+        <h3>ステータスの種類</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+          <div class="card" style="padding:10px 14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="badge badge-amber">入力済・未確認</span>
+              <span style="font-size:0.85rem;color:var(--text-muted);">値は記録されたが確認待ち</span>
+            </div>
+          </div>
+          <div class="card" style="padding:10px 14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="badge badge-blue">CAD取込済・未確認</span>
+              <span style="font-size:0.85rem;color:var(--text-muted);">CAD自動取り込み後、確認待ち</span>
+            </div>
+          </div>
+          <div class="card" style="padding:10px 14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="badge badge-green">✓ 確認済</span>
+              <span style="font-size:0.85rem;color:var(--text-muted);">担当者が確認・承認した値</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3>確認操作の手順</h3>
+        <ol class="steps">
+          <li>
+            <div class="step-body">
+              🕐 アイコンをクリックして<br/>更新履歴モーダルを開く
+            </div>
+          </li>
+          <li>
+            <div class="step-body">
+              最新エントリの「確認する」ボタンをクリック
+            </div>
+          </li>
+          <li>
+            <div class="step-body">
+              確認者名を入力して「確認する」
+            </div>
+          </li>
+        </ol>
+        <div class="callout tip">
+          <div class="callout-label">📋 推奨フロー</div>
+          CAD取り込み後は必ず担当者が数値を確認してから「確認済」にする運用を推奨します。
+        </div>
+        <div class="exercise">
+          <div class="ex-label">🖊 練習</div>
+          <h3>確認フローを実行しよう</h3>
+          <ol>
+            <li>🕐 アイコンをクリックして履歴を開く</li>
+            <li>「確認する」→ 確認者名を入力</li>
+            <li>ステータスが「確認済」になることを確認</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 15: Section — 重心・慣性テンソル ── -->
+  <div class="slide slide-section" data-idx="15">
+    <div class="section-num">Section 6</div>
+    <h2>重心・慣性テンソル</h2>
+    <div class="desc">コンポーネントの物理特性データを記録する</div>
+  </div>
+
+  <!-- ── 16: 重心・慣性テンソル ── -->
+  <div class="slide slide-content" data-idx="16">
+    <h2>重心・慣性テンソルタブ</h2>
+    <div class="two-col">
+      <div>
+        <h3>重心データ（CGタブ）</h3>
+        <p>各コンポーネントの重心座標を<strong>ロケット基準座標系 (m)</strong> で記録します。</p>
+        <table>
+          <thead><tr><th>列</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>X (m)</td><td>機軸方向（ノーズ基準）</td></tr>
+            <tr><td>Y (m)</td><td>機軸直交方向</td></tr>
+            <tr><td>Z (m)</td><td>機軸直交方向</td></tr>
+            <tr><td>エビデンス</td><td>算出根拠・CADファイル名</td></tr>
+          </tbody>
+        </table>
+        <h3>慣性テンソル（慣性テンソルタブ）</h3>
+        <p>各コンポーネントの慣性モーメント・慣性乗積 (kg·m²) を記録します。</p>
+        <table>
+          <thead><tr><th>列</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>Ixx / Iyy / Izz</td><td>慣性モーメント (kg·m²)</td></tr>
+            <tr><td>Ixy / Ixz / Iyz</td><td>慣性乗積 (kg·m²)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="callout info">
+          <div class="callout-label">💡 インライン編集</div>
+          各セルをクリックして直接編集できます。<br/>
+          <kbd>Enter</kbd> で確定、<kbd>Esc</kbd> でキャンセルです。
+        </div>
+        <div class="callout tip" style="margin-top:12px;">
+          <div class="callout-label">📦 CAD連携</div>
+          パラメトリック CAD モデルの「CAD更新 &amp; 質量反映」を実行すると、
+          重心・慣性テンソルも<strong>自動で書き込まれます</strong>。
+          手入力の手間が大幅に削減されます。
+        </div>
+        <div class="exercise" style="margin-top:12px;">
+          <div class="ex-label">🖊 練習</div>
+          <h3>重心座標を入力しよう</h3>
+          <ol>
+            <li>「重心」タブを開く</li>
+            <li>「1段エンジン」の X 座標セルをクリック</li>
+            <li>値 <code>4.250</code> を入力して確定</li>
+            <li>エビデンスに「CAD Rev.3 参照」を入力</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 17: Section — CAD連携 ── -->
+  <div class="slide slide-section" data-idx="17">
+    <div class="section-num">Section 7</div>
+    <h2>CAD データ連携</h2>
+    <div class="desc">JSON取り込みとパラメトリック CAD モデルの活用</div>
+  </div>
+
+  <!-- ── 18: CAD JSON取り込み ── -->
+  <div class="slide slide-content" data-idx="18">
+    <h2>CAD データ取り込み — JSON 方式</h2>
+    <div class="two-col">
+      <div>
+        <p>質量評価タブの <strong>「CADデータ取り込み」</strong> ボタンから開きます。</p>
+        <h3>JSON ファイルの取り込み手順</h3>
+        <ol class="steps">
+          <li>
+            <div class="step-body">「CADデータ取り込み」モーダルを開く</div>
+          </li>
+          <li>
+            <div class="step-body">
+              JSON ファイルをドラッグ&amp;ドロップ or クリックして選択
+              <div class="step-note">CAD から出力した .json ファイル</div>
+            </div>
+          </li>
+          <li>
+            <div class="step-body">
+              適用先を設定<br/>
+              <span class="badge badge-gray">単品</span> → コンポーネント1つを選択<br/>
+              <span class="badge badge-gray">アセンブリ</span> → 部品ごとに対応付け
+            </div>
+          </li>
+          <li>
+            <div class="step-body">「JSON 取り込む」をクリック</div>
+          </li>
+        </ol>
+      </div>
+      <div>
+        <div class="card primary">
+          <div class="card-title">取り込まれるデータ</div>
+          <ul style="margin-top:4px;">
+            <li>質量 (kg)</li>
+            <li>重心 X / Y / Z (m)</li>
+            <li>慣性テンソル Ixx〜Iyz (kg·m²)</li>
+          </ul>
+        </div>
+        <div class="callout info" style="margin-top:12px;">
+          <div class="callout-label">💡 バッジ表示</div>
+          取り込み後、実質量セルに <span class="badge badge-blue">📦 CAD</span> バッジが表示されます。
+          手入力値との区別がひと目でわかります。
+        </div>
+        <div class="callout tip" style="margin-top:8px;">
+          <div class="callout-label">📝 更新履歴</div>
+          CAD取り込みも手入力と同様に<strong>更新履歴</strong>が記録されます。
+          確認フローで「確認済」にすることを忘れずに。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 19: パラメトリックモデル ── -->
+  <div class="slide slide-content" data-idx="19">
+    <h2>CAD データ取り込み — パラメトリックモデル</h2>
+    <div class="two-col">
+      <div>
+        <p>STEP / JSON / CSV ファイルから<strong>アセンブリ構造と質量・重心・慣性プロパティを取り込み</strong>、rocketDB のコンポーネントに反映します。</p>
+        <h3>ワークフロー</h3>
+        <ol class="steps">
+          <li>
+            <div class="step-body">「CADファイルを追加」で STEP / JSON / CSV をアップロード</div>
+          </li>
+          <li>
+            <div class="step-body">
+              「バインド設定」でパラメータと CAD alias を紐づけ
+              <div class="step-note">例: rocketDB の <code>D_body</code> → CAD の Spreadsheet alias <code>D_body</code></div>
+            </div>
+          </li>
+          <li>
+            <div class="step-body">コンポーネントと CAD オブジェクトを対応付け</div>
+          </li>
+          <li>
+            <div class="step-body">「CAD更新 &amp; 質量反映」ボタンをクリック</div>
+          </li>
+        </ol>
+      </div>
+      <div>
+        <div class="card dark">
+          <div class="card-title">対応データ形式</div>
+          <div class="feat-row" style="padding:8px 0;">
+            <div><span class="badge badge-blue">STEP</span> <span style="font-size:0.85rem;color:#e2e8f0;">.stp / .step (ISO 10303)</span></div>
+          </div>
+          <div class="feat-row" style="padding:8px 0;">
+            <div><span class="badge badge-purple">JSON</span> <span style="font-size:0.85rem;color:#e2e8f0;">アセンブリ階層・質量プロパティ</span></div>
+          </div>
+          <div class="feat-row" style="padding:8px 0;border-bottom:none;">
+            <div><span class="badge badge-purple">CSV</span> <span style="font-size:0.85rem;color:#e2e8f0;">フラットなパラメータ表</span></div>
+          </div>
+        </div>
+        <div class="callout tip" style="margin-top:12px;">
+          <div class="callout-label">💡 複数モデル登録</div>
+          複数のデータファイルを登録して、それぞれ独立したバインド設定を持てます。
+          「バインド設定」ボタンで各モデルの設定をモーダルで確認できます。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 20: バインド設定詳細 ── -->
+  <div class="slide slide-content" data-idx="20">
+    <h2>バインド設定の詳細</h2>
+    <div class="two-col">
+      <div>
+        <h3>パラメータバインド</h3>
+        <p>rocketDB の値を CAD の Spreadsheet alias に送ります。</p>
+        <table style="font-size:0.82rem;">
+          <thead><tr><th>設定項目</th><th>説明</th></tr></thead>
+          <tbody>
+            <tr><td>CAD alias</td><td>CAD の Spreadsheet alias 名</td></tr>
+            <tr><td>ソース</td><td>rocketDB のどの値を送るか（パラメータ・定数・コンポーネント など）</td></tr>
+            <tr><td>倍率</td><td>単位変換係数（m→mm なら 1000）</td></tr>
+            <tr><td>送信値</td><td>実際に送られる値のプレビュー（緑=OK/赤=未設定）</td></tr>
+          </tbody>
+        </table>
+        <h3>コンポーネントバインド</h3>
+        <p>CAD のオブジェクトと rocketDB コンポーネントを対応付けます。</p>
+        <table style="font-size:0.82rem;">
+          <thead><tr><th>設定項目</th><th>説明</th></tr></thead>
+          <tbody>
+            <tr><td>CAD オブジェクト名</td><td>CAD のオブジェクト名（自動検出可）</td></tr>
+            <tr><td>rocketDB コンポーネント</td><td>書き戻し先のコンポーネント</td></tr>
+            <tr><td>密度 kg/m³</td><td>質量計算用の密度（空欄=材質密度を使用）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="callout tip">
+          <div class="callout-label">💡 複数オブジェクトの合算</div>
+          同じコンポーネントに複数の CAD オブジェクトをバインドすると、
+          質量を合算・重心を質量加重平均・慣性テンソルを加算します。
+          タンク本体＋バルブ等の構成部品の合算に便利です。
+        </div>
+        <div class="callout info" style="margin-top:12px;">
+          <div class="callout-label">💡 送信値プレビュー</div>
+          バインド設定モーダルの「送信値」列で、
+          実際に CAD に送られる値を事前確認できます。<br/>
+          <span style="color:var(--success);">緑</span>=解決済 / <span style="color:var(--danger);">赤</span>=未設定
+        </div>
+        <div class="exercise">
+          <div class="ex-label">🖊 確認</div>
+          <h3>バインド設定を確認しよう</h3>
+          <ol>
+            <li>セットアップカードの「バインド設定」をクリック</li>
+            <li>送信値列が緑になっているか確認</li>
+            <li>赤の場合はソース設定を修正する</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 21: まとめ ── -->
+  <div class="slide slide-content" data-idx="21">
+    <h2>習得チェックリスト</h2>
+    <div class="two-col">
+      <div>
+        <h3>基本操作</h3>
+        <ul class="checklist">
+          <li>プロジェクトを作成できる</li>
+          <li>ロケットDBを作成・派生できる</li>
+          <li>設計ツリーをズーム・パンできる</li>
+          <li>アクティブバージョンを設定できる</li>
+        </ul>
+        <h3>コンポーネント・パラメータ</h3>
+        <ul class="checklist">
+          <li>コンポーネント階層ツリーを構築できる</li>
+          <li>fixed / formula / aggregate の違いがわかる</li>
+          <li>パラメータを定義して数式で参照できる</li>
+          <li>数式が自動再計算されることを確認できた</li>
+        </ul>
+      </div>
+      <div>
+        <h3>質量評価・データ入力</h3>
+        <ul class="checklist">
+          <li>実質量を記録してエビデンスを入力できる</li>
+          <li>差分の色の意味がわかる</li>
+          <li>更新履歴を確認できる</li>
+          <li>確認フロー（確認済）を実行できる</li>
+        </ul>
+        <h3>CAD 連携</h3>
+        <ul class="checklist">
+          <li>JSON ファイルを取り込んでコンポーネントに反映できる</li>
+          <li>CAD バッジと未確認バッジの意味がわかる</li>
+          <li>パラメトリックモデルのバインド設定を確認できる</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 22: End ── -->
+  <div class="slide slide-section" data-idx="22" style="background: linear-gradient(145deg, #0d1b4f 0%, #1a0533 100%);">
+    <div class="cover-deco" style="width:500px;height:500px;background:#f9ab00;bottom:-150px;right:-150px;filter:blur(100px);opacity:0.1;"></div>
+    <div class="section-num">完了</div>
+    <h2 style="font-size:3rem;">お疲れさまでした 🎉</h2>
+    <div class="desc" style="font-size:1.1rem;max-width:600px;">
+      詳細はツール右上の <strong style="color:var(--accent);">?（ヘルプ）</strong> ボタンからいつでもマニュアルを参照できます。
+    </div>
+    <div style="margin-top:32px;display:flex;gap:16px;justify-content:center;">
+      <a href="/manual.html" target="_blank" style="background:rgba(255,255,255,0.1);color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;border:1px solid rgba(255,255,255,0.2);font-size:0.9rem;">
+        📖 マニュアルを開く
+      </a>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- ── Navigation ── -->
+<div class="nav">
+  <button class="nav-btn" id="prevBtn" onclick="prev()" title="前へ (←)">&#8592;</button>
+  <div class="nav-jump" id="navDots"></div>
+  <span class="nav-counter" id="counter">1 / 23</span>
+  <button class="nav-btn" id="nextBtn" onclick="next()" title="次へ (→)">&#8594;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  const progress = document.getElementById('progress');
+  const counter  = document.getElementById('counter');
+  const prevBtn  = document.getElementById('prevBtn');
+  const nextBtn  = document.getElementById('nextBtn');
+  const dotsEl   = document.getElementById('navDots');
+
+  // Build dots
+  slides.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'nav-dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    d.title = `スライド ${i + 1}`;
+    dotsEl.appendChild(d);
+  });
+
+  function goTo(idx) {
+    if (idx < 0 || idx >= total) return;
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    setTimeout(() => slides[current === idx ? current : current].classList.remove('exit'), 300);
+    const prev = current;
+    current = idx;
+    slides[current].classList.add('active');
+    setTimeout(() => slides[prev].classList.remove('exit'), 300);
+    updateUI();
+  }
+
+  function next() { goTo(current + 1); }
+  function prev() { goTo(current - 1); }
+
+  function updateUI() {
+    counter.textContent = `${current + 1} / ${total}`;
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === total - 1;
+    progress.style.width = `${((current + 1) / total) * 100}%`;
+    dotsEl.querySelectorAll('.nav-dot').forEach((d, i) => {
+      d.classList.toggle('active', i === current);
+    });
+    slides[current].scrollTop = 0;
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); prev(); }
+    if (e.key === 'Home') goTo(0);
+    if (e.key === 'End')  goTo(total - 1);
+  });
+
+  updateUI();
+</script>
+</body>
+</html>
