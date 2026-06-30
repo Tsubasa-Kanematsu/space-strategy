@@ -3,7 +3,6 @@ import { useAppStore } from '../../stores/appStore';
 import type { AppView } from '../../types';
 import { SERVICE_META } from '../analysis/analysisServiceMeta';
 import { useFlags } from '../../stores/featureFlagsStore';
-import { PhaseWorkBar } from './PhaseWorkBar';
 
 const DB_TABS: { view: AppView; icon: string; label: string; matchViews?: AppView[] }[] = [
   { view: 'massModel',      icon: 'diagram-2',          label: 'コンポーネント構成' },
@@ -39,7 +38,6 @@ export const ContentTabNav: React.FC = () => {
   if (massCaseId && DB_VIEWS.includes(view)) {
     return (
       <div>
-        <PhaseWorkBar />
         <div className="content-tabnav">
           {VISIBLE_DB_TABS.map((tab) => {
             const isActive = tab.matchViews ? tab.matchViews.includes(view) : view === tab.view;
@@ -63,7 +61,6 @@ export const ContentTabNav: React.FC = () => {
   if (massCaseId && sizingCaseId && SIZING_VIEWS.includes(view)) {
     return (
       <div>
-        <PhaseWorkBar />
         <div className="content-tabnav">
           <button
             className="content-tab"

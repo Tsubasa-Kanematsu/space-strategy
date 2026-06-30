@@ -2,6 +2,7 @@ import React from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { ContentTabNav } from './ContentTabNav';
+import { PhaseWorkBar } from './PhaseWorkBar';
 import { useAppStore } from '../../stores/appStore';
 import { useCollab } from '../../ws/useCollab';
 import { useUrlSync } from '../../lib/useUrlSync';
@@ -133,6 +134,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ onLogout }) => {
       <Sidebar />
       <div className="main-area">
         <Topbar onLogout={onLogout} />
+        {/* フェーズ作業バー: 号機フェーズの条件設定/解析フローを開いている間だけ表示。
+            DB/フローのどちらでも同じ位置に出るよう、ここで一度だけ描画する。 */}
+        <PhaseWorkBar />
         <ContentTabNav />
         <div className="content-area">
           <ErrorBoundary>

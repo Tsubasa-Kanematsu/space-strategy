@@ -3,7 +3,6 @@ import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
-import { PhaseWorkBar } from '../layout/PhaseWorkBar';
 import type { AnalysisFlow } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -243,8 +242,6 @@ export const AnalysisFlowEditor: React.FC = () => {
 
   return (
     <div>
-      {/* 号機フェーズに属する場合は上部にフェーズ作業バー（条件設定/解析フロー切替＋号機へ戻る） */}
-      <PhaseWorkBar />
       <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
         {/* 号機由来のときは PhaseWorkBar が戻る導線を持つので、ここはスタンドアロン時のみ */}
         {!ownerUnit && (

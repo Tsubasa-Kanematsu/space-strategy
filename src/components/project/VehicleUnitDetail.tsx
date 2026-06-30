@@ -4,7 +4,6 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { useApplicationStore } from '../../stores/applicationStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
-import { useMassCaseStore } from '../../stores/massCaseStore';
 import { isPtComplete, PHASE_META, PHASE_STATUSES } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
 import { BUILTIN_FLOW_TEMPLATES, PT_TEMPLATE_KEY, FT_TEMPLATE_KEY } from '../analysis/flow/flowTemplates';
@@ -26,7 +25,6 @@ export const VehicleUnitDetail: React.FC = () => {
   const getByUnit = useApplicationStore((s) => s.getByUnit);
   const upsertForUnit = useApplicationStore((s) => s.upsertForUnit);
   const addFlow = useAnalysisFlowStore((s) => s.addFlow);
-  const addCase = useMassCaseStore((s) => s.addCase);
 
   const unit = vehicleUnitId ? getUnit(vehicleUnitId) : undefined;
 
@@ -50,24 +48,8 @@ export const VehicleUnitDetail: React.FC = () => {
 
   const phaseState = (phase: AnalysisPhase): PhaseState => (phase === 'PT' ? unit.pt : unit.ft);
 
-  // このフェーズの「条件設定」＝機体諸元DBを開く（無ければ作成）。フェーズと1:1対応。
-  const openConditions = (phase: AnalysisPhase) => {
-    const ps = phaseState(phase);
-    let mcId = ps.massCaseId;
-    if (!mcId) {
-      const created = addCase({
-        projectId,
-        name: `${unit.unitNo}号機 ${PHASE_META[phase].label} 機体諸元`,
-        memo: '',
-        createdBy: '',
-      });
-      mcId = created.id;
-      updatePhase(unit.id, phase, { massCaseId: mcId });
-    }
-    navigate('massModel', { projectId, massCaseId: mcId });
-  };
-
-  // このフェーズの「解析フロー設定」＝パイプラインを開く（無ければ作成し、対応テンプレートを初期適用）
+  // このフェーズの「解析設定」を開く＝解析フロー（パイプライン）を開く。
+  // 無ければ対応テンプレートを初期適用して作成。条件設定(機体諸元)へは上部の作業バーで切替。
   const openFlow = (phase: AnalysisPhase) => {
     const ps = phaseState(phase);
     let fId = ps.flowId;
@@ -102,26 +84,15 @@ export const VehicleUnitDetail: React.FC = () => {
           <span className={`badge ${STATUS_BADGE[ps.status]}`}>{ps.status}</span>
         </div>
         <div className="card-body d-flex flex-column">
-          <div className="mb-2">
-            <label className="form-label small fw-medium mb-1"><i className="bi bi-sliders me-1" />条件設定<small className="text-muted ms-1">機体諸元（このフェーズ専用DB）</small></label>
-            <button
-              className="btn btn-outline-primary btn-sm w-100 text-start d-flex justify-content-between align-items-center"
-              onClick={() => openConditions(phase)}
-            >
-              <span>{ps.massCaseId ? '条件設定を開く' : '条件設定を作成して開く'}</span>
-              <i className="bi bi-arrow-right" />
-            </button>
-          </div>
-
           <div className="mb-3">
-            <label className="form-label small fw-medium mb-1"><i className="bi bi-diagram-3 me-1" />解析フロー設定<small className="text-muted ms-1">パイプライン</small></label>
             <button
               className="btn btn-outline-primary btn-sm w-100 text-start d-flex justify-content-between align-items-center"
               onClick={() => openFlow(phase)}
             >
-              <span>{ps.flowId ? '解析フローを開く' : '解析フローを作成して開く'}</span>
+              <span><i className="bi bi-sliders me-1" />解析設定を開く</span>
               <i className="bi bi-arrow-right" />
             </button>
+            <small className="text-muted d-block mt-1">条件設定（機体諸元）と解析フローを設定します。</small>
           </div>
 
           <div className="mt-auto">
