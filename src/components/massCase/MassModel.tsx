@@ -7,9 +7,8 @@ import { usePropulsionStore } from '../../stores/propulsionStore';
 import { useAppStore } from '../../stores/appStore';
 import { useCadBindingStore } from '../../stores/cadBindingStore';
 import type { MassComponent, ComponentStage, ComponentInputType, DocumentRef, DocumentType, TagDefinition } from '../../types';
-import { evaluateComponentMasses, computeGlobalCGMap, computeAggregateInertiaMap, computeAggregateMountMap, type CG3D, type Inertia6, type MountBounds } from '../../utils/formulaEngine';
+import { evaluateComponentMasses, computeGlobalCGMap, computeAggregateInertiaMap, type CG3D, type Inertia6 } from '../../utils/formulaEngine';
 import { buildCrossRefScope } from '../../utils/crossRefScope';
-import { CadImportModal, type CadApplyUpdate } from './CadImportModal';
 import { DependencyMap } from './DependencyMap';
 import { DependencyMapOverview } from './DependencyMapOverview';
 import { listPropulsionVars, listShapeVars } from '../../utils/crossRefScope';
@@ -134,7 +133,7 @@ function resolveTags(
   return ids;
 }
 
-type DataView = 'mass' | 'cginertia' | 'material' | 'mounting';
+type DataView = 'mass' | 'cginertia' | 'material';
 
 interface RowProps {
   comp: MassComponent;
@@ -157,17 +156,12 @@ interface RowProps {
   dataView: DataView;
   /** この行に対する計算済み質量。なければ null (= 未計算 or 式未解決) */
   computedMass: number | null;
-  /** この行に対する計算済み質量が「有効値として存在」するか (式エラー判定用) */
-  computedMassExists: boolean;
-  aggregatedActualMass?: number | null;
   childrenSumActualMass?: number | null;
   aggregatedCG?: CG3D | null;
   aggregatedInertia?: Inertia6 | null;
-  aggregatedMount?: MountBounds | null;
   onUpdateData: (updates: Partial<MassComponent>) => void;
   onOpenFieldEntry: (field: string, fieldLabel: string, currentValue: string, step?: string, extraUpdate?: (val: string) => Record<string, unknown>) => void;
   onOpenCgInertiaEdit: () => void;
-  onOpenMountEdit: () => void;
   onOpenMaterialEdit: () => void;
   onOpenInputValueEdit: () => void;
   onOpenFieldHistory: () => void;
@@ -180,7 +174,6 @@ interface RowProps {
   historyCount: number;
   /** リンクアイコン色（グループ識別用）。未設定時はアイコン非表示 */
   linkColor?: string;
-  onOpenLinkPanel?: () => void;
 }
 
 /**
@@ -211,9 +204,9 @@ const ComponentRowInner: React.FC<RowProps> = ({
   comp, depth, isCollapsed, hasChildren, isCadBound,
   onToggle, onEdit, onAddChild, onDelete,
   onRowDragStart, onRowDragEnd, onRowDragOver, onRowDrop, isRowDragging, rowDropIndicator,
-  dataView, computedMass, computedMassExists, aggregatedActualMass, childrenSumActualMass, aggregatedCG, aggregatedInertia, aggregatedMount, onUpdateData, onOpenFieldEntry, onOpenCgInertiaEdit, onOpenMountEdit, onOpenMaterialEdit, onOpenInputValueEdit, onOpenFieldHistory,
+  dataView, computedMass, childrenSumActualMass, aggregatedCG, aggregatedInertia, onUpdateData, onOpenFieldEntry, onOpenCgInertiaEdit, onOpenMaterialEdit, onOpenInputValueEdit, onOpenFieldHistory,
   onNavigateInto, tagDefinitions, onSaveTagDefs, onOpenTagMgr, onMove,
-  linkColor, onOpenLinkPanel, historyCount,
+  linkColor, historyCount,
 }) => {
   const [editField, setEditField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -587,11 +580,7 @@ const ComponentRowInner: React.FC<RowProps> = ({
 
       {/* Data columns */}
       {dataView === 'mass' && <>
-        {/* Variable name(質量タブのみ表示) */}
-        <td>
-          {inlineInput('varName', comp.varName ?? '', '変数名')}
-        </td>
-        {/* 入力タイプ + 値/計算式 を 1セル に統合(1セットで更新する1つの論理単位)。
+        {/* 入力タイプ + 値 を 1セル に統合(1セットで更新する1つの論理単位)。
            * クローン編集の制御は linkColor で判定(孤立クローンは編集可)。 */}
         {(() => {
           const isReadOnly = !!(linkColor && !comp.isLinkMaster);
@@ -599,13 +588,12 @@ const ComponentRowInner: React.FC<RowProps> = ({
             ? <span className="text-muted fst-italic" style={{ fontSize: '0.78rem' }}>—</span>
             : comp.valueOrFormula
               ? <span className="font-monospace text-truncate" style={{ fontSize: '0.82rem', color: '#374151', maxWidth: 180 }}>{comp.valueOrFormula}</span>
-              : <span className="text-muted fst-italic" style={{ fontSize: '0.78rem' }}>{comp.inputType === 'formula' ? '計算式未入力' : '値未入力'}</span>;
+              : <span className="text-muted fst-italic" style={{ fontSize: '0.78rem' }}>値未入力</span>;
           const fullValue = comp.inputType === 'aggregate'
             ? '集計'
-            : (comp.valueOrFormula || (comp.inputType === 'formula' ? '計算式未入力' : '値未入力'));
+            : (comp.valueOrFormula || '値未入力');
           // 旧「配分質量 (kg)」列の計算結果を同セル下段に統合表示
           const alloc = resolveAllocatedMass(comp, computedMass);
-          const formulaUnresolved = comp.inputType === 'formula' && !computedMassExists;
           return (
             <td>
               <div className="d-flex flex-column gap-1">
@@ -636,13 +624,6 @@ const ComponentRowInner: React.FC<RowProps> = ({
                   className="d-flex align-items-center justify-content-start gap-1 font-monospace"
                   style={{ fontSize: '0.78rem', color: '#6b7280' }}
                 >
-                  {formulaUnresolved && (
-                    <i
-                      className="bi bi-exclamation-triangle-fill text-warning"
-                      style={{ fontSize: '0.72rem' }}
-                      title="計算式を解決できません。変数名や式の内容を確認してください。"
-                    />
-                  )}
                   {alloc != null
                     ? <span><span className="text-muted me-1">=</span>{alloc.toFixed(2)} kg</span>
                     : <span className="text-muted">— kg</span>}
@@ -735,19 +716,6 @@ const ComponentRowInner: React.FC<RowProps> = ({
             </td>
           );
         })()}
-        <td className="text-end font-monospace" style={{ fontSize: '0.82rem' }}>
-          {(() => {
-            const alloc = resolveAllocatedMass(comp, computedMass);
-            const actual = hasChildren ? aggregatedActualMass : comp.actualMass;
-            if (alloc == null || actual == null) return <span className="text-muted">—</span>;
-            const d = alloc - actual;
-            return (
-              <span style={{ color: d < 0 ? '#dc2626' : d > 0 ? '#16a34a' : '#6b7280' }}>
-                {d > 0 ? '+' : ''}{d.toFixed(2)}
-              </span>
-            );
-          })()}
-        </td>
       </>}
       {dataView === 'cginertia' && <>
         {(() => {
@@ -883,39 +851,6 @@ const ComponentRowInner: React.FC<RowProps> = ({
           </>
         );
       })()}
-      {dataView === 'mounting' && (() => {
-        const isCloneReadOnly = !!(linkColor && !comp.isLinkMaster);
-        const wrap = (raw: number | null | undefined) => {
-          const display = raw != null ? raw.toFixed(3) : '—';
-          if (isCloneReadOnly) return <span className="font-monospace" style={{ fontSize: '0.82rem' }}>{display}</span>;
-          return (
-            <span
-              className="font-monospace editable-cell mm-group-mounting"
-              style={{ fontSize: '0.82rem' }}
-              onClick={onOpenMountEdit}
-              title="クリックで搭載位置を編集"
-            >{display}</span>
-          );
-        };
-        // 親(集計)と葉で値ソースだけ変える(編集はどちらも同一モーダル)。
-        const src = hasChildren
-          ? {
-              posX: aggregatedMount?.posX ?? null, endX: aggregatedMount?.endX ?? null,
-              posY: aggregatedMount?.posY ?? null, endY: aggregatedMount?.endY ?? null,
-              posZ: aggregatedMount?.posZ ?? null, endZ: aggregatedMount?.endZ ?? null,
-            }
-          : {
-              posX: comp.mountPosX, endX: comp.mountEndX,
-              posY: comp.mountPosY, endY: comp.mountEndY,
-              posZ: comp.mountPosZ, endZ: comp.mountEndZ,
-            };
-        const tdCls = hasChildren ? 'text-end text-secondary' : 'text-end';
-        const cells: (number | null | undefined)[] = [src.posX, src.endX, src.posY, src.endY, src.posZ, src.endZ];
-        return cells.map((v, i) => (
-          <td key={i} className={tdCls}>{wrap(v)}</td>
-        ));
-      })()}
-
       {/* Actions */}
       <td className="col-actions">
         <div className="d-flex gap-1">
@@ -939,16 +874,6 @@ const ComponentRowInner: React.FC<RowProps> = ({
           {/* 子追加・親変更は行左端へ移設済(コンポーネント名の起点に近い方が直感的) */}
           {/* 上へ/下へボタンは行左端のドラッグハンドルに置換(順序 swap だけだと
               同 order 重複時に効かないバグがあったため、ドラッグ→0..n 再正規化に統一) */}
-          {onOpenLinkPanel && (
-            <button
-              className="btn btn-sm btn-outline-secondary p-1"
-              style={{ fontSize: 11, color: linkColor ?? undefined }}
-              onClick={onOpenLinkPanel}
-              title="リンク管理"
-            >
-              <i className="bi bi-link-45deg" />
-            </button>
-          )}
           <button className="btn btn-sm btn-outline-danger" onClick={onDelete} title="削除">
             <i className="bi bi-trash" />
           </button>
@@ -1073,7 +998,7 @@ export const MassModel: React.FC = () => {
       const v = sessionStorage.getItem('rocketdb.massModel.initialTab');
       if (v) {
         sessionStorage.removeItem('rocketdb.massModel.initialTab');
-        if (v === 'mass' || v === 'cginertia' || v === 'material' || v === 'mounting') return v as DataView;
+        if (v === 'mass' || v === 'cginertia' || v === 'material') return v as DataView;
       }
     } catch { /* SSR/プライベートモード等は無視 */ }
     return 'mass';
@@ -1107,7 +1032,6 @@ export const MassModel: React.FC = () => {
   // case を開いたら全ノードを折り畳んだ状態で始める effect は components 定義後に置く (下方)
   const lastInitCaseRef = useRef<string | null>(null);
   const [mapSubMode, setMapSubMode] = useState<'overview' | 'detail'>('overview');
-  const [showCadImportModal, setShowCadImportModal] = useState(false);
   // 統合フィールド記録モーダル
   type FieldEntryState = {
     comp: MassComponent;
@@ -1156,33 +1080,12 @@ export const MassModel: React.FC = () => {
     changedBy: '',
     evidence: '',
   });
-  const formulaInputRef = useRef<HTMLInputElement>(null);
-  const insertAtFormulaCursor = (text: string) => {
-    const el = formulaInputRef.current;
-    if (!el) {
-      setInputValueForm((p) => ({ ...p, valueOrFormula: p.valueOrFormula + text }));
-      return;
-    }
-    const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? el.value.length;
-    const next = el.value.slice(0, start) + text + el.value.slice(end);
-    setInputValueForm((p) => ({ ...p, valueOrFormula: next }));
-    requestAnimationFrame(() => {
-      el.focus();
-      const pos = start + text.length;
-      el.setSelectionRange(pos, pos);
-    });
-  };
-  const MATH_FUNCTIONS_LIST = ['log()', 'log10()', 'sqrt()', 'abs()', 'exp()', 'sin()', 'cos()', 'tan()', 'ceil()', 'floor()', 'round()', 'max()', 'min()', 'pi'];
   // CG セット編集モーダル
   const [cgEditTarget, setCgEditTarget] = useState<MassComponent | null>(null);
   const [cgEditForm, setCgEditForm] = useState({ cgReference: 'local' as 'local' | 'global', cgX: '', cgY: '', cgZ: '', changedBy: '', evidence: '' });
   // 慣性テンソル セット編集モーダル
   const [inertiaEditTarget, setInertiaEditTarget] = useState<MassComponent | null>(null);
   const [inertiaEditForm, setInertiaEditForm] = useState({ ixx: '', iyy: '', izz: '', ixy: '', ixz: '', iyz: '', changedBy: '', evidence: '' });
-  // 搭載位置 セット編集モーダル
-  const [mountEditTarget, setMountEditTarget] = useState<MassComponent | null>(null);
-  const [mountEditForm, setMountEditForm] = useState({ mountPosX: '', mountEndX: '', mountPosY: '', mountEndY: '', mountPosZ: '', mountEndZ: '', changedBy: '', evidence: '' });
   // 材質 一括編集モーダル
   type MaterialEditForm = {
     materialName: string;
@@ -1204,12 +1107,6 @@ export const MassModel: React.FC = () => {
   // 親変更（移動）モーダル
   const [moveTarget, setMoveTarget] = useState<MassComponent | null>(null);
   const [moveSearchQuery, setMoveSearchQuery] = useState('');
-  // リンク管理パネル
-  const [linkPanelTarget, setLinkPanelTarget] = useState<MassComponent | null>(null);
-  // 「既存部品をリンク」セレクタ用 state
-  const [linkExistingPickerOpen, setLinkExistingPickerOpen] = useState(false);
-  const [linkExistingQuery, setLinkExistingQuery] = useState('');
-
   // データ変更モーダルからのドキュメント添付（CG/慣性/搭載/フィールド共通）
   const emptyAttachDocForm: Omit<DocumentRef, 'id' | 'addedAt' | 'updatedAt'> = {
     docNumber: '', title: '', revision: '', docType: 'drawing', url: '', note: '', addedBy: '', updatedBy: '',
@@ -1347,7 +1244,6 @@ export const MassModel: React.FC = () => {
   const [csvImportModal, setCsvImportModal] = useState<{ file: File; changedBy: string; evidence: string } | null>(null);
   // 大規模 CSV 取込中の進捗オーバーレイ。stage で何をしているか伝える
   const [csvImporting, setCsvImporting] = useState<{ stage: string; total?: number } | null>(null);
-  const [cadConfirmModal, setCadConfirmModal] = useState<{ updates: CadApplyUpdate[]; changedBy: string; evidence: string } | null>(null);
 
   // タグ管理モーダル
   const [showTagMgr, setShowTagMgr] = useState(false);
@@ -1541,11 +1437,6 @@ export const MassModel: React.FC = () => {
     [components, actualMassAggregated, cgAggregatedMap]
   );
 
-  const mountAggregatedMap = useMemo(
-    () => computeAggregateMountMap(components),
-    [components]
-  );
-
   /** リンクグループ ID -> 表示色 のマップ（グループ毎に異なる色）
    * メンバー数が 1 以下のグループ(孤立マスター/孤立クローン)は色を割り当てない。
    * = 色の有無を「有効なリンクグループに属しているか」の真値として使え、
@@ -1603,93 +1494,6 @@ export const MassModel: React.FC = () => {
     }
     return path;
   }, [currentFolderId, components]);
-
-  // ── リンク操作ハンドラ ──────────────────────────────────────────────────────
-
-  /** マスターにクローンを新規追加（物理量コピー + 同じ linkGroupId） */
-  const handleLinkAddInstance = (master: MassComponent) => {
-    if (!massCaseId) return;
-    const groupId = master.linkGroupId ?? uuidv4();
-    if (!master.linkGroupId) {
-      updateComponent(master.id, { linkGroupId: groupId, isLinkMaster: true });
-    }
-    const siblings = childrenOf.get(master.parentId) ?? [];
-    const baseName = master.paramName.replace(/ \(clone\d*\)$/, '');
-    const baseVar = master.varName.replace(/_\d+$/, '');
-    const existingClones = components.filter((c) => c.linkGroupId === groupId && !c.isLinkMaster);
-    const n = existingClones.length + 1;
-    addComponent({
-      massCaseId,
-      parentId: master.parentId,
-      paramName: `${baseName} (clone${n})`,
-      varName: baseVar ? `${baseVar}_${n}` : '',
-      level: master.level,
-      stage: master.stage,
-      inputType: master.inputType,
-      valueOrFormula: master.valueOrFormula,
-      order: siblings.length,
-      allocatedMass: master.allocatedMass,
-      actualMass: master.actualMass,
-      actualMassEvidence: master.actualMassEvidence,
-      actualMassHistory: master.actualMassHistory ? [...master.actualMassHistory] : undefined,
-      cgX: master.cgX, cgY: master.cgY, cgZ: master.cgZ,
-      cgEvidence: master.cgEvidence, cgReference: master.cgReference,
-      localOriginX: master.localOriginX, localOriginY: master.localOriginY, localOriginZ: master.localOriginZ,
-      ixx: master.ixx, iyy: master.iyy, izz: master.izz,
-      ixy: master.ixy, ixz: master.ixz, iyz: master.iyz,
-      inertiaEvidence: master.inertiaEvidence,
-      materialName: master.materialName, materialDensity: master.materialDensity,
-      materialDensityUnit: master.materialDensityUnit, materialYoungModulus: master.materialYoungModulus,
-      materialNote: master.materialNote,
-      debrisShapeType: master.debrisShapeType, debrisCharLength: master.debrisCharLength,
-      debrisDiameter: master.debrisDiameter, debrisArea: master.debrisArea, debrisNote: master.debrisNote,
-      diff: null,
-      linkGroupId: groupId,
-      isLinkMaster: false,
-    });
-  };
-
-  /** 既存部品をリンクグループに追加（マスターの物理量で上書き） */
-  const handleLinkExisting = (master: MassComponent, targetId: string) => {
-    const target = components.find((c) => c.id === targetId);
-    if (!target) return;
-    // 別グループに既属の部品を移籍させる場合は警告(無言で他グループを壊さない)
-    if (target.linkGroupId && target.linkGroupId !== master.linkGroupId) {
-      const ok = window.confirm(
-        `「${target.paramName}」は別のリンクグループに所属しています。元のグループから外して新グループへ移動してよいですか？`,
-      );
-      if (!ok) return;
-    }
-    const groupId = master.linkGroupId ?? uuidv4();
-    if (!master.linkGroupId) {
-      updateComponent(master.id, { linkGroupId: groupId, isLinkMaster: true });
-    }
-    // LINK_SYNC_FIELDS 全項目をマスターから target にコピー(タグ/CAD/ドキュメント/誤差源含む)
-    const syncedData: Partial<MassComponent> = { linkGroupId: groupId, isLinkMaster: false };
-    const masterRec = master as unknown as Record<string, unknown>;
-    const syncedRec = syncedData as unknown as Record<string, unknown>;
-    for (const key of LINK_SYNC_FIELDS) {
-      syncedRec[key] = masterRec[key];
-    }
-    updateComponent(target.id, syncedData);
-    setLinkExistingPickerOpen(false);
-    setLinkExistingQuery('');
-  };
-
-  /** クローンを独立部品に戻す（リンク解除） */
-  const handleLinkDetach = (clone: MassComponent) => {
-    const groupId = clone.linkGroupId;
-    if (!groupId) return;
-    updateComponent(clone.id, { linkGroupId: undefined, isLinkMaster: undefined });
-    // グループの残メンバーが1台になったら独立部品に戻す
-    const remaining = components.filter(
-      (c) => c.linkGroupId === groupId && c.id !== clone.id,
-    );
-    if (remaining.length === 1) {
-      updateComponent(remaining[0].id, { linkGroupId: undefined, isLinkMaster: undefined });
-    }
-    setLinkPanelTarget(null);
-  };
 
   // ── CSV エクスポート ──────────────────────────────────────────────────────────
   const handleCsvExport = () => {
@@ -1759,83 +1563,6 @@ export const MassModel: React.FC = () => {
         value: e.value, evidence, status: 'input',
       }, {});
     }
-  };
-
-  // CAD取り込み: 受け取った更新を一括反映し、エビデンスを変更履歴に記録
-  // kind='unbind' は CAD バインド解除に伴うメタ情報クリア + 解除履歴記録のみ
-  const applyCadUpdates = (updates: CadApplyUpdate[]) => {
-    updates.forEach(({ componentId, update, source, cadLabel, recordedBy, evidence, kind }) => {
-      updateComponent(componentId, update);
-      // ── バインド解除の処理 ──────────────────────────────────────────────
-      if (kind === 'unbind') {
-        const label = (recordedBy && recordedBy.trim()) || cadLabel || 'CAD';
-        const ev = (evidence && evidence.trim()) || `CADバインド解除: ${cadLabel ?? 'CAD'}`;
-        addFieldEntry(componentId, {
-          changedBy: label,
-          field: 'cadBinding',
-          fieldLabel: 'CADバインド',
-          value: `解除 (元: ${cadLabel ?? 'CAD'})`,
-          evidence: ev,
-          status: 'input',
-          source: 'cad',
-        }, {});
-        return;
-      }
-      if (source !== 'cad') return;
-      const label = (recordedBy && recordedBy.trim()) || cadLabel || 'CAD';
-      const ev = (evidence && evidence.trim()) || `CADインポート: ${cadLabel ?? 'CAD'}`;
-      // 実質量
-      if (update.actualMass !== undefined) {
-        addActualMassEntry(componentId, {
-          value: update.actualMass,
-          evidence: ev,
-          recordedBy: label,
-          status: 'input',
-          source: 'cad',
-        });
-      }
-      // 重心
-      if (update.cgX !== undefined || update.cgY !== undefined || update.cgZ !== undefined) {
-        addFieldEntry(componentId, {
-          changedBy: label, field: 'cg', fieldLabel: '重心',
-          value: `(${update.cgX ?? '?'}, ${update.cgY ?? '?'}, ${update.cgZ ?? '?'}) m`,
-          evidence: ev, status: 'input', source: 'cad',
-        }, {});
-      }
-      // 慣性テンソル
-      if (update.ixx !== undefined || update.iyy !== undefined || update.izz !== undefined) {
-        addFieldEntry(componentId, {
-          changedBy: label, field: 'inertia', fieldLabel: '慣性テンソル',
-          value: `Ixx=${update.ixx ?? '?'}, Iyy=${update.iyy ?? '?'}, Izz=${update.izz ?? '?'} kg·m²`,
-          evidence: ev, status: 'input', source: 'cad',
-        }, {});
-      }
-      // 材質
-      if (update.materialName !== undefined) {
-        addFieldEntry(componentId, {
-          changedBy: label, field: 'material', fieldLabel: '材質',
-          value: `${update.materialName}${update.materialDensity != null ? ` (${update.materialDensity} kg/m³)` : ''}`,
-          evidence: ev, status: 'input', source: 'cad',
-        }, {});
-      } else if (update.materialDensity !== undefined) {
-        addFieldEntry(componentId, {
-          changedBy: label, field: 'materialDensity', fieldLabel: '密度',
-          value: `${update.materialDensity} kg/m³`,
-          evidence: ev, status: 'input', source: 'cad',
-        }, {});
-      }
-      // 搭載位置・長さ
-      if (update.mountPosX !== undefined || update.mountEndX !== undefined) {
-        addFieldEntry(componentId, {
-          changedBy: label, field: 'mounting', fieldLabel: '搭載位置',
-          value: [
-            update.mountPosX !== undefined ? `X始点=${update.mountPosX} m` : null,
-            update.mountEndX !== undefined ? `X終点=${update.mountEndX} m` : null,
-          ].filter(Boolean).join(', '),
-          evidence: ev, status: 'input', source: 'cad',
-        }, {});
-      }
-    });
   };
 
   // ── CSV インポート ──────────────────────────────────────────────────────────
@@ -2056,26 +1783,6 @@ export const MassModel: React.FC = () => {
       setCsvImportError(`エラー: ${err instanceof Error ? err.message : String(err)}`);
       setCsvImporting(null);
     }
-  };
-
-  const openMountEdit = (comp: MassComponent) => {
-    // 搭載位置は LINK_SYNC_FIELDS 同期対象なので、クローンでは編集不可。
-    if (comp.linkGroupId && !comp.isLinkMaster) {
-      const master = components.find((c) => c.linkGroupId === comp.linkGroupId && c.isLinkMaster);
-      window.alert(`この部品はクローンです。搭載位置の編集はマスター「${master?.paramName ?? '(マスター)'}」で行ってください。`);
-      return;
-    }
-    setMountEditTarget(comp);
-    setMountEditForm({
-      mountPosX: comp.mountPosX != null ? String(comp.mountPosX) : '',
-      mountEndX: comp.mountEndX != null ? String(comp.mountEndX) : '',
-      mountPosY: comp.mountPosY != null ? String(comp.mountPosY) : '',
-      mountEndY: comp.mountEndY != null ? String(comp.mountEndY) : '',
-      mountPosZ: comp.mountPosZ != null ? String(comp.mountPosZ) : '',
-      mountEndZ: comp.mountEndZ != null ? String(comp.mountEndZ) : '',
-      changedBy: '',
-      evidence: '',
-    });
   };
 
   const openMaterialEdit = (comp: MassComponent) => {
@@ -2420,28 +2127,6 @@ export const MassModel: React.FC = () => {
     setMaterialEditTarget(null);
   };
 
-  const handleMountEditSubmit = () => {
-    if (!mountEditTarget) return;
-    const docErr = validateAttachDoc();
-    if (docErr) { window.alert(docErr); return; }
-    const parse = (v: string) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
-    const updates: Partial<MassComponent> = {
-      mountPosX: parse(mountEditForm.mountPosX), mountEndX: parse(mountEditForm.mountEndX),
-      mountPosY: parse(mountEditForm.mountPosY), mountEndY: parse(mountEditForm.mountEndY),
-      mountPosZ: parse(mountEditForm.mountPosZ), mountEndZ: parse(mountEditForm.mountEndZ),
-    };
-    // addFieldEntry が updates も適用するため、ここでの updateComponent は重複(undo step も 2 倍)
-    const documentId = commitAttachedDoc(mountEditTarget.id, mountEditForm.changedBy);
-    addFieldEntry(mountEditTarget.id, {
-      changedBy: mountEditForm.changedBy.trim(), field: 'mounting', fieldLabel: '搭載位置',
-      value: `X[${mountEditForm.mountPosX || '—'}~${mountEditForm.mountEndX || '—'}] Y[${mountEditForm.mountPosY || '—'}~${mountEditForm.mountEndY || '—'}] Z[${mountEditForm.mountPosZ || '—'}~${mountEditForm.mountEndZ || '—'}]`,
-      evidence: mountEditForm.evidence.trim(), status: 'input',
-      documentId,
-    }, updates);
-    resetAttachDoc();
-    setMountEditTarget(null);
-  };
-
   const addRootComponent = () => {
     if (!massCaseId) return;
     // フォルダ内にいる場合はそのフォルダの子として追加
@@ -2634,15 +2319,6 @@ export const MassModel: React.FC = () => {
             </>
           )}
           {viewMode !== 'map' && (
-            <button
-              className="btn btn-outline-success btn-sm"
-              onClick={() => setShowCadImportModal(true)}
-              title="CADデータをコンポーネントに取り込む"
-            >
-              <i className="bi bi-file-earmark-code me-1" />CAD取り込み
-            </button>
-          )}
-          {viewMode !== 'map' && (
             <button className="btn btn-primary btn-sm" onClick={addRootComponent}>
               <i className="bi bi-plus-lg me-1" />
               ルート追加
@@ -2751,7 +2427,6 @@ export const MassModel: React.FC = () => {
               { id: 'mass',      label: '質量',             icon: 'graph-up' },
               { id: 'cginertia', label: '重心・慣性テンソル', icon: 'crosshair' },
               { id: 'material',  label: '材質',             icon: 'layers' },
-              { id: 'mounting',  label: '搭載位置',          icon: 'rulers' },
             ] as { id: DataView; label: string; icon: string }[]).map((opt) => (
               <button
                 key={opt.id}
@@ -2916,10 +2591,8 @@ export const MassModel: React.FC = () => {
                 <th style={{ width: 72 }}>段</th>
                 <th style={{ width: 110 }}>タグ</th>
                 {dataView === 'mass' && <>
-                  <th style={{ minWidth: 120 }}>変数名</th>
                   <th style={{ minWidth: 240 }}>システム配分値 (kg)</th>
                   <th className="text-end" style={{ minWidth: 100 }}>実質量 (kg)</th>
-                  <th className="text-end" style={{ minWidth: 90 }}>差分 (kg)</th>
                 </>}
                 {dataView === 'cginertia' && <>
                   <th style={{ minWidth: 60 }}>座標系</th>
@@ -2940,14 +2613,6 @@ export const MassModel: React.FC = () => {
                 {dataView === 'material' && <>
                   <th style={{ minWidth: 130 }}>材質名</th>
                   <th className="text-end" style={{ minWidth: 140 }}>密度</th>
-                </>}
-                {dataView === 'mounting' && <>
-                  <th className="text-end" style={{ minWidth: 110 }}>搭載X始点 (m)</th>
-                  <th className="text-end" style={{ minWidth: 110 }}>搭載X終点 (m)</th>
-                  <th className="text-end" style={{ minWidth: 100 }}>搭載Y始点 (m)</th>
-                  <th className="text-end" style={{ minWidth: 100 }}>搭載Y終点 (m)</th>
-                  <th className="text-end" style={{ minWidth: 100 }}>搭載Z始点 (m)</th>
-                  <th className="text-end" style={{ minWidth: 100 }}>搭載Z終点 (m)</th>
                 </>}
                 <th className="col-actions" style={{ minWidth: 160 }}><i className="bi bi-gear" /></th>
               </tr>
@@ -2992,16 +2657,12 @@ export const MassModel: React.FC = () => {
                     rowDropIndicator={dropTarget?.id === comp.id ? dropTarget.pos : null}
                     dataView={dataView}
                     computedMass={computedMasses.get(comp.id) ?? null}
-                    computedMassExists={computedMasses.has(comp.id)}
-                    aggregatedActualMass={actualMassAggregated.get(comp.id)}
                     childrenSumActualMass={childrenSumActualMassMap.get(comp.id)}
                     aggregatedCG={cgAggregatedMap.get(comp.id)}
                     aggregatedInertia={inertiaAggregatedMap.get(comp.id)}
-                    aggregatedMount={mountAggregatedMap.get(comp.id)}
                     onUpdateData={(updates) => updateComponent(comp.id, updates)}
                     onOpenFieldEntry={(field, label, val, step, extra) => openFieldEntry(comp, field, label, val, step, extra)}
                     onOpenCgInertiaEdit={() => openCgInertiaEdit(comp)}
-                    onOpenMountEdit={() => openMountEdit(comp)}
                     onOpenMaterialEdit={() => openMaterialEdit(comp)}
                     onOpenInputValueEdit={() => openInputValueEdit(comp)}
                     onOpenFieldHistory={() => setHistoryTarget(comp)}
@@ -3019,7 +2680,6 @@ export const MassModel: React.FC = () => {
                     }}
                     onMove={() => setMoveTarget(comp)}
                     linkColor={comp.linkGroupId ? linkGroupColorMap.get(comp.linkGroupId) : undefined}
-                    onOpenLinkPanel={() => setLinkPanelTarget(comp)}
                   />
                 ))
               )}
@@ -3480,15 +3140,7 @@ export const MassModel: React.FC = () => {
 
       {/* ── 入力タイプ + 値/計算式 統合モーダル ── */}
       {inputValueTarget && (() => {
-        const isFormula = inputValueForm.inputType === 'formula';
         const isAggregate = inputValueForm.inputType === 'aggregate';
-        const componentVars = components
-          .filter((c) => c.varName && c.id !== inputValueTarget.id)
-          .map((c) => ({ varName: c.varName, label: c.paramName }));
-        const paramVars = parameters
-          .filter((p) => p.varName)
-          .map((p) => ({ varName: p.varName, label: p.name }));
-        const externalVars = [...shapeVars, ...propVars];
         return (
           <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 1060 }}>
             <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 560 }}>
@@ -3511,7 +3163,7 @@ export const MassModel: React.FC = () => {
                       onChange={(e) => setInputValueForm((p) => ({ ...p, inputType: e.target.value as ComponentInputType }))}
                     >
                       {(Object.entries(INPUT_TYPE_LABELS) as [ComponentInputType, string][])
-                        .filter(([k]) => k !== 'design_var' || sizingEnabled)
+                        .filter(([k]) => k !== 'formula' && (k !== 'design_var' || sizingEnabled))
                         .map(([k, v]) => (
                           <option key={k} value={k} style={{ color: INPUT_TYPE_BADGE[k] }}>{v}</option>
                         ))}
@@ -3520,82 +3172,16 @@ export const MassModel: React.FC = () => {
                   {!isAggregate && (
                     <div className="mb-2">
                       <label className="form-label fw-medium" style={{ fontSize: '0.85rem' }}>
-                        {isFormula ? '計算式' : '値'} <span className="text-danger">*</span>
+                        値 <span className="text-danger">*</span>
                       </label>
                       <input
-                        ref={formulaInputRef}
                         className="form-control form-control-sm font-monospace"
                         type="text"
                         value={inputValueForm.valueOrFormula}
                         onChange={(e) => setInputValueForm((p) => ({ ...p, valueOrFormula: e.target.value }))}
-                        placeholder={isFormula ? '例: m_eng1 * 2 + 5' : '例: 12.5'}
+                        placeholder="例: 12.5"
                         autoFocus
                       />
-                    </div>
-                  )}
-                  {isFormula && (
-                    <div className="mb-2 p-2 bg-light rounded" style={{ fontSize: '0.78rem' }}>
-                      {paramVars.length > 0 && (
-                        <div className="mb-2">
-                          <span className="text-muted fw-semibold me-1">パラメータ変数:</span>
-                          <div className="d-flex flex-wrap gap-1 mt-1">
-                            {paramVars.map((v) => (
-                              <button key={v.varName} type="button"
-                                className="btn btn-outline-secondary btn-sm py-0 font-monospace"
-                                style={{ fontSize: '0.72rem' }}
-                                title={v.label}
-                                onClick={() => insertAtFormulaCursor(v.varName)}>
-                                {v.varName}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {componentVars.length > 0 && (
-                        <div className="mb-2">
-                          <span className="text-muted fw-semibold me-1">コンポーネント変数:</span>
-                          <div className="d-flex flex-wrap gap-1 mt-1">
-                            {componentVars.map((v) => (
-                              <button key={v.varName} type="button"
-                                className="btn btn-outline-success btn-sm py-0 font-monospace"
-                                style={{ fontSize: '0.72rem' }}
-                                title={v.label}
-                                onClick={() => insertAtFormulaCursor(v.varName)}>
-                                {v.varName}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {externalVars.length > 0 && (
-                        <div className="mb-2">
-                          <span className="text-muted fw-semibold me-1">外部参照変数:</span>
-                          <div className="d-flex flex-wrap gap-1 mt-1">
-                            {externalVars.map((v) => (
-                              <button key={v.varName} type="button"
-                                className="btn btn-outline-primary btn-sm py-0 font-monospace"
-                                style={{ fontSize: '0.72rem' }}
-                                title={v.description}
-                                onClick={() => insertAtFormulaCursor(v.varName)}>
-                                {v.varName}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-muted fw-semibold me-1">数学関数:</span>
-                        <div className="d-flex flex-wrap gap-1 mt-1">
-                          {MATH_FUNCTIONS_LIST.map((fn) => (
-                            <button key={fn} type="button"
-                              className="btn btn-outline-info btn-sm py-0 font-monospace"
-                              style={{ fontSize: '0.72rem' }}
-                              onClick={() => insertAtFormulaCursor(fn)}>
-                              {fn}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   )}
                   <div className="mb-2">
@@ -3725,58 +3311,6 @@ export const MassModel: React.FC = () => {
               <div className="modal-footer py-2">
                 <button className="btn btn-secondary btn-sm" onClick={() => setInertiaEditTarget(null)}>キャンセル</button>
                 <button className="btn btn-primary btn-sm" onClick={handleInertiaEditSubmit}>記録する</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── 搭載位置セット編集モーダル ── */}
-      {mountEditTarget && (
-        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 1060 }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header py-2">
-                <h6 className="modal-title"><i className="bi bi-pencil-square me-2 text-primary" />搭載位置を編集</h6>
-                <button className="btn-close btn-sm" onClick={() => setMountEditTarget(null)} />
-              </div>
-              <div className="modal-body">
-                <div className="mb-2 text-muted" style={{ fontSize: '0.78rem' }}>
-                  <i className="bi bi-box me-1" />{mountEditTarget.paramName}
-                </div>
-                {(['X', 'Y', 'Z'] as const).map((axis) => (
-                  <div className="row g-2 mb-2" key={axis}>
-                    <div className="col-6">
-                      <label className="form-label fw-medium" style={{ fontSize: '0.85rem' }}>{axis} 始点 (m)</label>
-                      <input className="form-control form-control-sm font-monospace" type="number" step="any"
-                        value={mountEditForm[`mountPos${axis}` as keyof typeof mountEditForm]}
-                        onChange={(e) => setMountEditForm(p => ({ ...p, [`mountPos${axis}`]: e.target.value }))}
-                        placeholder="—" />
-                    </div>
-                    <div className="col-6">
-                      <label className="form-label fw-medium" style={{ fontSize: '0.85rem' }}>{axis} 終点 (m)</label>
-                      <input className="form-control form-control-sm font-monospace" type="number" step="any"
-                        value={mountEditForm[`mountEnd${axis}` as keyof typeof mountEditForm]}
-                        onChange={(e) => setMountEditForm(p => ({ ...p, [`mountEnd${axis}`]: e.target.value }))}
-                        placeholder="—" />
-                    </div>
-                  </div>
-                ))}
-                <div className="mb-2">
-                  <label className="form-label fw-medium" style={{ fontSize: '0.85rem' }}>記入者</label>
-                  <input className="form-control form-control-sm" value={mountEditForm.changedBy}
-                    onChange={(e) => setMountEditForm(p => ({ ...p, changedBy: e.target.value }))} placeholder="例: 山田太郎" />
-                </div>
-                <div className="mb-0">
-                  <label className="form-label fw-medium" style={{ fontSize: '0.85rem' }}>エビデンス・備考</label>
-                  <textarea className="form-control form-control-sm" rows={2} value={mountEditForm.evidence}
-                    onChange={(e) => setMountEditForm(p => ({ ...p, evidence: e.target.value }))} placeholder="例: CAD計算値。" />
-                </div>
-                {renderAttachDocSection()}
-              </div>
-              <div className="modal-footer py-2">
-                <button className="btn btn-secondary btn-sm" onClick={() => setMountEditTarget(null)}>キャンセル</button>
-                <button className="btn btn-primary btn-sm" onClick={handleMountEditSubmit}>記録する</button>
               </div>
             </div>
           </div>
@@ -4335,22 +3869,6 @@ export const MassModel: React.FC = () => {
         );
       })()}
 
-      {showCadImportModal && (
-        <CadImportModal
-          components={components}
-          onApply={(updates: CadApplyUpdate[]) => {
-            // recordedBy/evidence のいずれかが入っていれば即時反映、無ければ confirm モーダルでユーザー入力を求める
-            const hasMeta = updates.some((u) => (u.recordedBy && u.recordedBy.trim()) || (u.evidence && u.evidence.trim()));
-            if (hasMeta) {
-              applyCadUpdates(updates);
-            } else {
-              setCadConfirmModal({ updates, changedBy: '', evidence: '' });
-            }
-          }}
-          onClose={() => setShowCadImportModal(false)}
-        />
-      )}
-
       {/* タグ管理モーダル */}
       {showTagMgr && massCase && (() => {
         const defs = massCase.tagDefinitions ?? [];
@@ -4524,271 +4042,6 @@ export const MassModel: React.FC = () => {
         );
       })()}
 
-      {/* ── CAD反映確認モーダル ── */}
-      {cadConfirmModal && (
-        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1080 }}>
-          <div className="modal-dialog modal-dialog-centered modal-sm">
-            <div className="modal-content">
-              <div className="modal-header py-2">
-                <h6 className="modal-title">
-                  <i className="bi bi-pencil-square me-2 text-primary" />CAD反映情報の入力
-                </h6>
-                <button className="btn-close btn-sm" onClick={() => setCadConfirmModal(null)} />
-              </div>
-              <div className="modal-body">
-                <div className="alert alert-info py-2" style={{ fontSize: '0.78rem' }}>
-                  CAD取り込みによる {cadConfirmModal.updates.length} コンポーネントの変更を、変更履歴に記録します。
-                </div>
-                <div className="mb-2">
-                  <label className="form-label fw-medium" style={{ fontSize: '0.85rem' }}>記入者</label>
-                  <input
-                    className="form-control form-control-sm"
-                    value={cadConfirmModal.changedBy}
-                    onChange={(e) => setCadConfirmModal((p) => p ? { ...p, changedBy: e.target.value } : p)}
-                    placeholder="例: 山田太郎"
-                    autoFocus
-                  />
-                </div>
-                <div className="mb-0">
-                  <label className="form-label fw-medium" style={{ fontSize: '0.85rem' }}>エビデンス・備考</label>
-                  <textarea
-                    className="form-control form-control-sm"
-                    rows={2}
-                    value={cadConfirmModal.evidence}
-                    onChange={(e) => setCadConfirmModal((p) => p ? { ...p, evidence: e.target.value } : p)}
-                    placeholder="例: CAD Rev.3 を反映"
-                  />
-                </div>
-              </div>
-              <div className="modal-footer py-2">
-                <button className="btn btn-secondary btn-sm" onClick={() => setCadConfirmModal(null)}>キャンセル</button>
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => {
-                    const m = cadConfirmModal;
-                    const enriched = m.updates.map((u) => ({
-                      ...u,
-                      recordedBy: u.recordedBy || m.changedBy.trim(),
-                      evidence: u.evidence || m.evidence.trim() || `CADインポート: ${u.cadLabel ?? 'CAD'}`,
-                    }));
-                    applyCadUpdates(enriched);
-                    setCadConfirmModal(null);
-                  }}
-                >
-                  記録して反映する
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── リンク管理パネル ── */}
-      {linkPanelTarget && (() => {
-        const target = components.find((c) => c.id === linkPanelTarget.id) ?? linkPanelTarget;
-        const isMaster = !!target.isLinkMaster;
-        const isLinked = !!target.linkGroupId;
-        const groupId = target.linkGroupId;
-        const groupColor = groupId ? (linkGroupColorMap.get(groupId) ?? '#6c757d') : '#6c757d';
-
-        const groupMembers = groupId
-          ? components.filter((c) => c.linkGroupId === groupId)
-          : [];
-        const master = groupMembers.find((c) => c.isLinkMaster);
-        const clones = groupMembers.filter((c) => !c.isLinkMaster);
-
-        // 既存部品リンク候補。自分自身・削除済み(Tombstone)・同じ link group のメンバーを除外。
-        // target が独立部品(groupId=undefined)のときは linkGroupId による除外を行わない
-        // (undefined !== undefined が false で他の独立部品も除外されてしまう問題の修正)。
-        const linkCandidates = components.filter(
-          (c) =>
-            c.id !== target.id &&
-            !c.isDeleted &&
-            (groupId === undefined || c.linkGroupId !== groupId),
-        );
-        const filteredCandidates = linkCandidates
-          .filter((c) => {
-            const q = linkExistingQuery.trim().toLowerCase();
-            return !q || c.paramName.toLowerCase().includes(q) || (c.varName ?? '').toLowerCase().includes(q);
-          })
-          // 日本語対応の名前順で安定ソート(下位が50件で切られるとき優先順位を予測可能に)
-          .sort((a, b) => a.paramName.localeCompare(b.paramName, 'ja'));
-
-        return (
-          <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.45)', zIndex: 1070 }} onClick={() => { setLinkPanelTarget(null); setLinkExistingPickerOpen(false); }}>
-            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content">
-                <div className="modal-header py-2">
-                  <h6 className="modal-title">
-                    <i className="bi bi-link-45deg me-1" style={{ color: groupColor }} />
-                    リンク管理 — {target.paramName}
-                  </h6>
-                  <button className="btn-close btn-sm" onClick={() => { setLinkPanelTarget(null); setLinkExistingPickerOpen(false); }} />
-                </div>
-                <div className="modal-body py-2" style={{ fontSize: '0.85rem' }}>
-                  {!isLinked && (
-                    <div className="mb-3">
-                      <div className="text-muted mb-2">この部品はリンクされていません（独立部品）。インスタンスを追加するか、既存部品をリンクするとマスターになります。</div>
-                      <div className="d-flex gap-2 flex-wrap">
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => {
-                            handleLinkAddInstance(target);
-                          }}
-                        >
-                          <i className="bi bi-plus-circle me-1" />インスタンス追加（マスターにして複製）
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => setLinkExistingPickerOpen((v) => !v)}
-                        >
-                          <i className="bi bi-box-arrow-in-right me-1" />既存部品をリンク
-                        </button>
-                      </div>
-                      {linkExistingPickerOpen && (
-                        <div className="mt-2 border rounded p-2" style={{ background: '#fff' }}>
-                          <input
-                            className="form-control form-control-sm mb-2"
-                            placeholder="コンポーネント名で検索…"
-                            value={linkExistingQuery}
-                            onChange={(e) => setLinkExistingQuery(e.target.value)}
-                            autoFocus
-                          />
-                          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                            {filteredCandidates.length === 0 && (
-                              <div className="text-muted px-1" style={{ fontSize: '0.78rem' }}>候補なし</div>
-                            )}
-                            {filteredCandidates.slice(0, 50).map((c) => (
-                              <button
-                                key={c.id}
-                                className="btn btn-sm btn-link text-start w-100 px-1 py-1"
-                                style={{ textDecoration: 'none', fontSize: '0.82rem' }}
-                                onClick={() => handleLinkExisting(target, c.id)}
-                              >
-                                <i className="bi bi-box me-1 text-muted" />
-                                {c.paramName}
-                                {c.varName && <span className="text-muted ms-1">({c.varName})</span>}
-                                {c.linkGroupId && (
-                                  <span className="badge ms-1" style={{ background: linkGroupColorMap.get(c.linkGroupId) ?? '#6c757d', fontSize: 9 }}>
-                                    リンク済
-                                  </span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {isLinked && isMaster && (
-                    <div className="mb-3 p-2 border rounded" style={{ borderColor: groupColor, background: '#f8f9fa' }}>
-                      <div className="fw-semibold mb-2" style={{ color: groupColor }}>
-                        <i className="bi bi-link-45deg me-1" />マスター部品
-                      </div>
-                      <div className="mb-2">
-                        <span className="text-muted">リンク済みクローン ({clones.length}個):</span>
-                        {clones.length === 0 && <span className="text-muted ms-2 fst-italic">なし</span>}
-                        <ul className="list-unstyled mb-0 mt-1 ps-2">
-                          {clones.map((c) => (
-                            <li key={c.id} style={{ fontSize: '0.82rem' }}>
-                              <i className="bi bi-link me-1 text-muted" />{c.paramName}
-                              {c.varName && <span className="text-muted ms-1">({c.varName})</span>}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="d-flex gap-2 flex-wrap">
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => {
-                            handleLinkAddInstance(target);
-                          }}
-                        >
-                          <i className="bi bi-plus-circle me-1" />インスタンス追加
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => setLinkExistingPickerOpen((v) => !v)}
-                        >
-                          <i className="bi bi-box-arrow-in-right me-1" />既存部品をリンク
-                        </button>
-                      </div>
-                      {linkExistingPickerOpen && (
-                        <div className="mt-2 border rounded p-2" style={{ background: '#fff' }}>
-                          <input
-                            className="form-control form-control-sm mb-2"
-                            placeholder="コンポーネント名で検索…"
-                            value={linkExistingQuery}
-                            onChange={(e) => setLinkExistingQuery(e.target.value)}
-                            autoFocus
-                          />
-                          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                            {filteredCandidates.length === 0 && (
-                              <div className="text-muted px-1" style={{ fontSize: '0.78rem' }}>候補なし</div>
-                            )}
-                            {filteredCandidates.slice(0, 50).map((c) => (
-                              <button
-                                key={c.id}
-                                className="btn btn-sm btn-link text-start w-100 px-1 py-1"
-                                style={{ textDecoration: 'none', fontSize: '0.82rem' }}
-                                onClick={() => handleLinkExisting(target, c.id)}
-                              >
-                                <i className="bi bi-box me-1 text-muted" />
-                                {c.paramName}
-                                {c.varName && <span className="text-muted ms-1">({c.varName})</span>}
-                                {c.linkGroupId && (
-                                  <span className="badge ms-1" style={{ background: linkGroupColorMap.get(c.linkGroupId) ?? '#6c757d', fontSize: 9 }}>
-                                    リンク済
-                                  </span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {isLinked && !isMaster && (
-                    <div className="mb-3 p-2 border rounded" style={{ borderColor: groupColor, background: '#f8f9fa' }}>
-                      <div className="fw-semibold mb-1" style={{ color: groupColor }}>
-                        <i className="bi bi-link-45deg me-1" />クローン
-                        {master && <span className="text-muted fw-normal ms-1">(マスター: {master.paramName})</span>}
-                      </div>
-                      <div className="text-muted mb-2" style={{ fontSize: '0.82rem' }}>
-                        物理量はマスターから同期されます。編集はマスターで行ってください。
-                      </div>
-                      <div className="d-flex gap-2">
-                        {master && (
-                          <button
-                            className="btn btn-sm btn-outline-primary"
-                            onClick={() => {
-                              setLinkPanelTarget(master);
-                              setLinkExistingPickerOpen(false);
-                            }}
-                          >
-                            <i className="bi bi-pencil-square me-1" />マスターを編集
-                          </button>
-                        )}
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => handleLinkDetach(target)}
-                        >
-                          <i className="bi bi-scissors me-1" />リンク解除
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer py-2">
-                  <button className="btn btn-secondary btn-sm" onClick={() => { setLinkPanelTarget(null); setLinkExistingPickerOpen(false); }}>閉じる</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 };
