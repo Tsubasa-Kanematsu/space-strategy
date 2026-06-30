@@ -140,11 +140,6 @@ app.post('/auth/signout', (req, res) => {
   res.json({ ok: true });
 });
 
-// フィーチャーフラグ配信 (現状はクライアント既定値を使うため空を返す)
-app.get('/auth/config', requireAuth, (_req, res) => {
-  res.json({ group: 'default', flags: {} });
-});
-
 // ── Key-Value ストア ──────────────────────────────────────────────
 app.get('/store/:key', requireAuth, (req, res) => {
   try {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import type { AnalysisFlow } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -197,9 +198,12 @@ export const AnalysisFlowEditor: React.FC = () => {
   const flows = useAnalysisFlowStore((s) => s.flows);
   const updateFlow = useAnalysisFlowStore((s) => s.updateFlow);
   const deleteFlow = useAnalysisFlowStore((s) => s.deleteFlow);
+  const units = useVehicleUnitStore((s) => s.units);
 
   const flow = analysisFlowId ? flows.find((f) => f.id === analysisFlowId) : null;
   const project = flow ? projects.find((p) => p.id === flow.projectId) : null;
+  // このフローを所有する号機（PT/FT）。あれば「号機へ戻る」を出す。
+  const ownerUnit = flow ? units.find((u) => u.pt.flowId === flow.id || u.ft.flowId === flow.id) ?? null : null;
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
@@ -239,13 +243,23 @@ export const AnalysisFlowEditor: React.FC = () => {
   return (
     <div>
       <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <button
-          className="btn btn-outline-secondary btn-sm"
-          onClick={() => navigate('analysisFlow')}
-          title="解析フロー一覧へ"
-        >
-          <i className="bi bi-arrow-left me-1" />一覧
-        </button>
+        {ownerUnit ? (
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={() => navigate('vehicleUnitDetail', { projectId: ownerUnit.projectId, vehicleUnitId: ownerUnit.id })}
+            title={`${ownerUnit.unitNo}号機 詳細へ`}
+          >
+            <i className="bi bi-arrow-left me-1" />{ownerUnit.unitNo}号機へ戻る
+          </button>
+        ) : (
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={() => navigate('analysisFlow')}
+            title="解析フロー一覧へ"
+          >
+            <i className="bi bi-arrow-left me-1" />一覧
+          </button>
+        )}
         <button
           className="btn btn-outline-primary btn-sm"
           onClick={() => setShowTemplateModal(true)}

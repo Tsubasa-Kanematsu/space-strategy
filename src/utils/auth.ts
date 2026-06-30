@@ -149,17 +149,5 @@ export function isAuthenticated(): boolean {
   return _tokens !== null;
 }
 
-/** ログイン後に機能フラグをAPIから取得する（現状サーバーは空フラグを返す） */
-export async function fetchFeatureFlags(): Promise<{ group: string; flags: Record<string, unknown> } | null> {
-  const token = await getAccessToken();
-  if (!token) return null;
-  try {
-    const res = await fetch(`${API_URL}/auth/config`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return null;
-    return await res.json() as { group: string; flags: Record<string, unknown> };
-  } catch {
-    return null;
-  }
-}
+// 機能フラグのアカウント別出し分けは廃止（全ユーザー同一の全機能セット）。
+// 以前あった fetchFeatureFlags / /auth/config は削除した。

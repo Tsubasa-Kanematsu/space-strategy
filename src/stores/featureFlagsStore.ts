@@ -3,16 +3,18 @@ import { FEATURE_FLAGS } from '../featureFlags';
 
 type FeatureFlags = typeof FEATURE_FLAGS;
 
+/**
+ * 機能フラグストア。
+ *
+ * アカウント（グループ）による機能の出し分けは廃止。全ユーザーが
+ * featureFlags.ts の同一セット（= 全機能）を使う。サーバーからの上書きは行わない。
+ */
 interface FeatureFlagsStore {
   flags: FeatureFlags;
-  group: string;
-  setFlags: (group: string, flags: FeatureFlags) => void;
 }
 
-export const useFeatureFlagsStore = create<FeatureFlagsStore>((set) => ({
+export const useFeatureFlagsStore = create<FeatureFlagsStore>(() => ({
   flags: FEATURE_FLAGS,
-  group: 'standard',
-  setFlags: (group, flags) => set({ group, flags }),
 }));
 
 export const useFlags = () => useFeatureFlagsStore((s) => s.flags);

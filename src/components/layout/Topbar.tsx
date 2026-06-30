@@ -6,8 +6,12 @@ import { useSizingStore } from '../../stores/sizingStore';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { usePluginStore } from '../../stores/pluginStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
+import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
+import { useApplicationStore } from '../../stores/applicationStore';
 import { SERVICE_META } from '../analysis/analysisServiceMeta';
-import type { AppView, AppNavState, AnalysisServiceType } from '../../types';
+import { goBack, canGoBack } from '../../lib/nav';
+import { PHASE_META } from '../../types/vehicleUnit';
+import type { AppView, AppNavState, AnalysisServiceType, VehicleUnit, Application } from '../../types';
 
 /**
  * 各ページの 階層的パンくずリスト。
@@ -33,7 +37,7 @@ interface TopbarProps {
 export const Topbar: React.FC<TopbarProps> = ({ onLogout }) => {
   const {
     view, projectId, massCaseId, sizingCaseId, analysisCaseId, analysisService,
-    pluginCaseId, analysisFlowId, navigate, toggleSidebar,
+    pluginCaseId, analysisFlowId, vehicleUnitId, applicationId, navigate, toggleSidebar,
   } = useAppStore();
   const projects        = useProjectStore((s) => s.projects);
   const massCases       = useMassCaseStore((s) => s.cases);
@@ -41,6 +45,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onLogout }) => {
   const analysisCases   = useAnalysisStore((s) => s.cases);
   const pluginCases     = usePluginStore((s) => s.cases);
   const flows           = useAnalysisFlowStore((s) => s.flows);
+  const units           = useVehicleUnitStore((s) => s.units);
+  const applications    = useApplicationStore((s) => s.applications);
 
   const project    = projects.find((p) => p.id === projectId) ?? null;
   const massCase   = massCaseId      ? (massCases.find((c) => c.id === massCaseId) ?? null)         : null;
@@ -52,6 +58,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onLogout }) => {
   const crumbs = buildCrumbs({
     view, projectId, massCaseId, sizingCaseId, analysisService, navigate,
     project, massCase, sizingCase, analysisCase, pluginCase, flow,
+    units, applications, vehicleUnitId, applicationId,
   });
 
   return (
@@ -62,6 +69,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onLogout }) => {
         title="サイドバー切替"
       >
         <i className="bi bi-layout-sidebar" />
+      </button>
+      <button
+        className="btn btn-sm btn-outline-secondary"
+        onClick={goBack}
+        disabled={!canGoBack()}
+        title="前の画面に戻る"
+      >
+        <i className="bi bi-arrow-left" />
       </button>
 
       <div className="topbar-context">
@@ -122,6 +137,19 @@ interface BuildCrumbsArgs {
   analysisCase: { id: string; name: string; serviceType: AnalysisServiceType; projectId: string } | null;
   pluginCase: { id: string; name: string } | null;
   flow: { id: string; name: string; projectId: string } | null;
+  units: VehicleUnit[];
+  applications: Application[];
+  vehicleUnitId: string | null;
+  applicationId: string | null;
+}
+
+/** flowId を所有する号機フェーズ（PT/FT）を逆引きする */
+function findFlowOwner(units: VehicleUnit[], flowId: string): { unit: VehicleUnit; phase: 'PT' | 'FT' } | null {
+  for (const u of units) {
+    if (u.pt.flowId === flowId) return { unit: u, phase: 'PT' };
+    if (u.ft.flowId === flowId) return { unit: u, phase: 'FT' };
+  }
+  return null;
 }
 
 function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
@@ -193,6 +221,17 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
     ];
   }
   if (view === 'analysisFlowDetail') {
+    // このフローを所有する号機フェーズ（PT/FT）を逆引きし、所有していれば
+    // 号機詳細を起点にしたパンくずにする（解析フロー一覧ではなく号機へ戻れるように）
+    const owner = a.flow ? findFlowOwner(a.units, a.flow.id) : null;
+    if (owner && a.project) {
+      return [
+        { label: 'プロジェクト', onClick: () => navigate('projects') },
+        { label: a.project.name, onClick: () => navigate('vehicleUnits', { projectId: a.projectId ?? undefined as never }) },
+        { label: `${owner.unit.unitNo}号機`, onClick: () => navigate('vehicleUnitDetail', { projectId: owner.unit.projectId, vehicleUnitId: owner.unit.id }) },
+        { label: `${PHASE_META[owner.phase].label} パイプライン` },
+      ];
+    }
     return [
       { label: '解析', onClick: () => navigate('analysisHub') },
       { label: '解析フロー 一覧', onClick: () => navigate('analysisFlow') },
@@ -200,12 +239,53 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
     ];
   }
 
+  // ─── 号機（プロジェクト詳細）系 ───
+  if (view === 'vehicleUnits' && a.project) {
+    return [
+      { label: 'プロジェクト', onClick: () => navigate('projects') },
+      { label: a.project.name },
+    ];
+  }
+  if (view === 'vehicleUnitDetail' && a.project) {
+    const u = a.units.find((x) => x.id === a.vehicleUnitId) ?? null;
+    return [
+      { label: 'プロジェクト', onClick: () => navigate('projects') },
+      { label: a.project.name, onClick: () => navigate('vehicleUnits', { projectId: a.projectId ?? undefined as never }) },
+      { label: u ? `${u.unitNo}号機` : '号機' },
+    ];
+  }
+
+  // ─── 申請書系 ───
+  if (view === 'applications') return [{ label: '申請書' }];
+  if (view === 'applicationDetail') {
+    const app = a.applications.find((x) => x.id === a.applicationId) ?? null;
+    return [
+      { label: '申請書', onClick: () => navigate('applications') },
+      { label: app ? `${app.unitNo}号機 申請書` : '申請書' },
+    ];
+  }
+
   // ─── マスタデータ系 ───
   if (view === 'masterDataHub') return [{ label: 'マスタデータ' }];
-  if (view === 'antennaData')   return [
-    { label: 'マスタデータ', onClick: () => navigate('masterDataHub') },
-    { label: 'アンテナデータ' },
-  ];
+  {
+    const MASTER_LABEL: Partial<Record<AppView, string>> = {
+      antennaData: 'アンテナデータ',
+      groundAntennaData: '地上局アンテナデータ',
+      vehicleAntennaData: '機体アンテナデータ',
+      debrisMaster: '代表破片データ',
+      shapeMaster: '機体形状データ',
+      aeroCoeffMaster: '空力係数データ',
+      propulsionMaster: '推進系データ',
+      windMaster: '風データ',
+      failureRateMaster: '故障率データ',
+    };
+    if (MASTER_LABEL[view]) {
+      return [
+        { label: 'マスタデータ', onClick: () => navigate('masterDataHub') },
+        { label: MASTER_LABEL[view]! },
+      ];
+    }
+  }
 
   // ─── プロジェクト依存系 (rocketDB) ───
   // [プロジェクト一覧] > [プロジェクト名] > [DB系/トレーサ]
@@ -214,7 +294,7 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
 
   const base: Crumb[] = [
     { label: 'プロジェクト', onClick: () => navigate('projects') },
-    { label: a.project.name, onClick: () => navigate('traceability', { projectId: a.projectId ?? undefined as never }) },
+    { label: a.project.name, onClick: () => navigate('vehicleUnits', { projectId: a.projectId ?? undefined as never }) },
   ];
 
   // traceability と massCases (廃止予定) は同じビュー扱い

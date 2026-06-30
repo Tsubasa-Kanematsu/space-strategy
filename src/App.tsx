@@ -13,9 +13,8 @@ import { useApplicationStore } from './stores/applicationStore';
 import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './components/auth/LoginPage';
 import { loadSampleData, isSampleDataLoaded } from './utils/sampleData';
-import { signOut, fetchFeatureFlags, silentRefresh } from './utils/auth';
+import { signOut, silentRefresh } from './utils/auth';
 import { setOnUnauthorized, setOnWriteError, setOnReadError } from './utils/cloudStorage';
-import { useFeatureFlagsStore } from './stores/featureFlagsStore';
 
 // 全ストアの明示的 rehydrate (認証成功後に呼ぶ)。
 // 各ストアの persist は skipHydration:true で起動時自動 hydrate を抑止しているため、
@@ -61,7 +60,6 @@ function App() {
   const [readError, setReadError] = useState<string | null>(null);
   // セッション切れモーダル: 401 検出時に表示。ユーザーが「再ログイン」を押すまで待つ。
   const [sessionExpired, setSessionExpired] = useState(false);
-  const setFlags = useFeatureFlagsStore((s) => s.setFlags);
 
   const handleLogout = useCallback(() => {
     signOut().finally(() => {
@@ -104,13 +102,8 @@ function App() {
     if (!authed) return;
 
     hydrateAllStores().then(async () => {
-      const config = await fetchFeatureFlags();
-      // サーバーが空フラグ {} を返す構成のため、空のときはクライアント既定値を維持する。
-      // （空で上書きすると FEATURE_FLAGS.db 等が undefined になり画面が壊れる）
-      if (config && config.flags && Object.keys(config.flags).length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setFlags(config.group, config.flags as any);
-      }
+      // 機能フラグはアカウントによる出し分けを廃止。全ユーザーが同一の全機能セット
+      // (featureFlags.ts の既定値) を使う。サーバーからの上書きは行わない。
 
       // 削除済みプロジェクトに紐付く孤立マスケースを削除
       // 安全策: projects が空のときは「読込失敗 or 真に空」の判別ができないため

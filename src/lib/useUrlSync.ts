@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { useAppStore } from '../stores/appStore';
 import type { AppNavState } from '../types';
 import { navToUrl, urlToNav, navStatesEqual } from './urlSync';
+import { noteForwardNav, notePopNav } from './nav';
 
 function pickNavState(): AppNavState {
   const s = useAppStore.getState();
@@ -55,6 +56,7 @@ export function useUrlSync(): void {
   // popstate: ブラウザ戻る/進む
   useEffect(() => {
     const onPop = () => {
+      notePopNav();
       const fromUrl = urlToNav(window.location.pathname, window.location.search);
       const current = pickNavState();
       if (!navStatesEqual(fromUrl, current)) {
@@ -94,6 +96,7 @@ export function useUrlSync(): void {
       const current = window.location.pathname + window.location.search;
       if (target !== current) {
         window.history.pushState(null, '', target);
+        noteForwardNav();
       }
     });
     return () => unsub();
