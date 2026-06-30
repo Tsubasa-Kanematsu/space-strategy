@@ -1,15 +1,20 @@
 # Render Blueprint — space-strategy (ミッション解析共通基盤・運用版プロトタイプ)
 #
 # 単一 Web サービスでビルド済み SPA を配信しつつ /store /auth /api を提供する。
+# 無料プラン構成: 永続ディスクなし（データは揮発し、再起動/再デプロイで初期化される。
+# 起動時にサンプルデータが自動投入されるためデモは常に動作する）。
 # デプロイ手順:
-#   1. このリポジトリを GitHub に push
+#   1. このリポジトリを GitHub に push（または Public Git Repository URL を貼る）
 #   2. Render Dashboard → New → Blueprint → リポジトリを選択
-#   3. APP_PASSWORD / JWT_SECRET を設定 (JWT_SECRET は generateValue で自動生成)
+#   3. APP_PASSWORD を入力（JWT_SECRET は generateValue で自動生成）
+#
+# データを永続化したくなったら: plan を starter 以上にして以下の disk を復活させるか、
+# 外部KV（Upstash Redis 等）に保存先を差し替える。
 services:
   - type: web
     name: space-strategy
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm run start
     healthCheckPath: /healthz
@@ -21,8 +26,4 @@ services:
       - key: JWT_SECRET
         generateValue: true  # Render が安全な値を自動生成
       - key: DATA_DIR
-        value: /var/data     # 永続ディスクのマウント先
-    disk:
-      name: space-strategy-data
-      mountPath: /var/data
-      sizeGB: 1
+        value: /tmp/data     # 揮発ストレージ（無料プランは永続ディスク不可）
