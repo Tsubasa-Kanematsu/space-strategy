@@ -19,10 +19,12 @@ import { SERVICE_META, ALL_SERVICES } from '../analysisServiceMeta';
  * - 座標は ReactFlow キャンバス上の x, y。
  */
 
-const COL_LEFT = -260;
-const COL_CENTER = 0;
-const COL_RIGHT = 260;
-const ROW_H = 140;
+// 横（左→右）フロー用のレイアウト定数。
+// x = 列（処理の進行方向）、y = 分岐（並列は上下にオフセット）
+const COL_W = 300;      // 列ピッチ（処理の進行方向＝右）
+const ROW_TOP = -160;   // 並列分岐 上
+const ROW_MID = 0;      // 主系列
+const ROW_BOTTOM = 160; // 並列分岐 下
 
 export interface FlowTemplate {
   key: string;
@@ -51,19 +53,19 @@ function buildPhaseFlow(opts: PhaseFlowOpts): AnalysisFlowStep[] {
     ol = uuidv4(), prr = uuidv4(), J = uuidv4(), end = uuidv4();
   const base = { status: 'pending' as const, notes: '', dataBindings: [] };
   return [
-    { id: f,    order: 0,  label: '飛行解析',         kind: 'normal',   position: { x: COL_CENTER, y: 0 },         nextStepIds: [d], ...base },
-    { id: d,    order: 1,  label: '分散飛行経路解析',  kind: 'normal',   position: { x: COL_CENTER, y: ROW_H },     nextStepIds: [ld, ab], ...base },
-    { id: ld,   order: 2,  label: '荷重解析',         kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 2 }, nextStepIds: [sh], ...base },
-    { id: ab,   order: 3,  label: '溶融解析',         kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 2 }, nextStepIds: [db], ...base },
-    { id: sh,   order: 4,  label: '海上船舶危険解析',  kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 3 }, nextStepIds: [pec], ...base },
-    { id: db,   order: 5,  label: '投棄物落下域解析',  kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 3 }, nextStepIds: [pec], ...base },
-    { id: pec,  order: 6,  label: 'Pi/Ec解析',        kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 4 }, nextStepIds: [rf, gnss], ...base },
-    { id: rf,   order: 7,  label: 'RFリンク解析',      kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 5 }, nextStepIds: [ol], ...base },
-    { id: gnss, order: 8,  label: '測位衛星通信解析',  kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 5 }, nextStepIds: [prr], ...base },
-    { id: ol,   order: 9,  label: '軌道上寿命解析',    kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 6 }, nextStepIds: [J], ...base },
-    { id: prr,  order: 10, label: '経路回転率解析',    kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 6 }, nextStepIds: [J], ...base },
-    { id: J,    order: 11, label: opts.decisionLabel, kind: 'decision', position: { x: COL_CENTER, y: ROW_H * 7 }, nextStepIds: [end], loopBackToStepId: f, loopCondition: opts.decisionCondition, ...base },
-    { id: end,  order: 12, label: opts.endLabel,      kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 8 }, nextStepIds: [], ...base },
+    { id: f,    order: 0,  label: '飛行解析',         kind: 'normal',   position: { x: COL_W * 0, y: ROW_MID },    nextStepIds: [d], ...base },
+    { id: d,    order: 1,  label: '分散飛行経路解析',  kind: 'normal',   position: { x: COL_W * 1, y: ROW_MID },    nextStepIds: [ld, ab], ...base },
+    { id: ld,   order: 2,  label: '荷重解析',         kind: 'normal',   position: { x: COL_W * 2, y: ROW_TOP },    nextStepIds: [sh], ...base },
+    { id: ab,   order: 3,  label: '溶融解析',         kind: 'normal',   position: { x: COL_W * 2, y: ROW_BOTTOM }, nextStepIds: [db], ...base },
+    { id: sh,   order: 4,  label: '海上船舶危険解析',  kind: 'normal',   position: { x: COL_W * 3, y: ROW_TOP },    nextStepIds: [pec], ...base },
+    { id: db,   order: 5,  label: '投棄物落下域解析',  kind: 'normal',   position: { x: COL_W * 3, y: ROW_BOTTOM }, nextStepIds: [pec], ...base },
+    { id: pec,  order: 6,  label: 'Pi/Ec解析',        kind: 'normal',   position: { x: COL_W * 4, y: ROW_MID },    nextStepIds: [rf, gnss], ...base },
+    { id: rf,   order: 7,  label: 'RFリンク解析',      kind: 'normal',   position: { x: COL_W * 5, y: ROW_TOP },    nextStepIds: [ol], ...base },
+    { id: gnss, order: 8,  label: '測位衛星通信解析',  kind: 'normal',   position: { x: COL_W * 5, y: ROW_BOTTOM }, nextStepIds: [prr], ...base },
+    { id: ol,   order: 9,  label: '軌道上寿命解析',    kind: 'normal',   position: { x: COL_W * 6, y: ROW_TOP },    nextStepIds: [J], ...base },
+    { id: prr,  order: 10, label: '経路回転率解析',    kind: 'normal',   position: { x: COL_W * 6, y: ROW_BOTTOM }, nextStepIds: [J], ...base },
+    { id: J,    order: 11, label: opts.decisionLabel, kind: 'decision', position: { x: COL_W * 7, y: ROW_MID },    nextStepIds: [end], loopBackToStepId: f, loopCondition: opts.decisionCondition, ...base },
+    { id: end,  order: 12, label: opts.endLabel,      kind: 'normal',   position: { x: COL_W * 8, y: ROW_MID },    nextStepIds: [], ...base },
   ];
 }
 

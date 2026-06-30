@@ -1,7 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
-import { useMassCaseStore } from '../../stores/massCaseStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { PHASE_META } from '../../types/vehicleUnit';
 import { BUILTIN_FLOW_TEMPLATES, PT_TEMPLATE_KEY, FT_TEMPLATE_KEY } from '../analysis/flow/flowTemplates';
@@ -34,7 +33,6 @@ export const PhaseWorkBar: React.FC = () => {
   const { view, vehicleUnitId, massCaseId, analysisFlowId, navigate } = useAppStore();
   const units = useVehicleUnitStore((s) => s.units);
   const updatePhase = useVehicleUnitStore((s) => s.updatePhase);
-  const addCase = useMassCaseStore((s) => s.addCase);
   const addFlow = useAnalysisFlowStore((s) => s.addFlow);
 
   const onOverview = view === 'vehicleUnitDetail';
@@ -60,17 +58,7 @@ export const PhaseWorkBar: React.FC = () => {
   if (!unit) return null;
   const u = unit;
 
-  // ── フェーズ内の各ツールを開く（無ければ作成）──────────────────────
-  const openConditions = (ph: AnalysisPhase) => {
-    const ps = ph === 'PT' ? u.pt : u.ft;
-    let mc = ps.massCaseId;
-    if (!mc) {
-      const c = addCase({ projectId: u.projectId, name: `${u.unitNo}号機 ${PHASE_META[ph].label} 機体諸元`, memo: '', createdBy: '' });
-      mc = c.id;
-      updatePhase(u.id, ph, { massCaseId: mc });
-    }
-    navigate('massModel', { projectId: u.projectId, massCaseId: mc });
-  };
+  // ── フェーズの基本画面（解析フロー）を開く（無ければ作成）────────────
   const openFlow = (ph: AnalysisPhase) => {
     const ps = ph === 'PT' ? u.pt : u.ft;
     let fid = ps.flowId;
@@ -122,26 +110,12 @@ export const PhaseWorkBar: React.FC = () => {
         </span>
       </div>
 
-      {/* 2段目: セクションタブ */}
+      {/* 2段目: セクションタブ（フェーズの基本画面＝解析フロー） */}
       <div className="d-flex align-items-center" style={{ padding: '0 12px', gap: 2 }}>
         {sectionTab('概要', onOverview, () => navigate('vehicleUnitDetail', { projectId: u.projectId, vehicleUnitId: u.id }))}
         {sectionTab('PT解析', phase === 'PT', () => openPhase('PT'))}
         {sectionTab('FT解析', phase === 'FT', () => openPhase('FT'))}
       </div>
-
-      {/* 3段目: フェーズ内サブタブ（条件設定/解析フロー） */}
-      {phase && (
-        <div style={{ background: '#eef3ff', borderTop: '1px solid #d0ddf7', padding: '6px 16px' }}>
-          <div className="btn-group btn-group-sm">
-            <button className={`btn ${onConditions ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => openConditions(phase!)}>
-              <i className="bi bi-sliders me-1" />条件設定
-            </button>
-            <button className={`btn ${onFlow ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => openFlow(phase!)}>
-              <i className="bi bi-diagram-3 me-1" />解析フロー
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

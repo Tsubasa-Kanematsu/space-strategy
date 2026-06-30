@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
-import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
-import type { AnalysisFlow } from '../../types';
+import { PHASE_META } from '../../types/vehicleUnit';
+import type { AnalysisFlow, AppView } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
 import { BUILTIN_FLOW_TEMPLATES, customToFlowTemplate, resolveSeedFromLabel, type FlowTemplate } from './flow/flowTemplates';
@@ -194,16 +194,19 @@ const FlowCard: React.FC<{
  */
 export const AnalysisFlowEditor: React.FC = () => {
   const { analysisFlowId, navigate } = useAppStore();
-  const projects = useProjectStore((s) => s.projects);
   const flows = useAnalysisFlowStore((s) => s.flows);
   const updateFlow = useAnalysisFlowStore((s) => s.updateFlow);
   const deleteFlow = useAnalysisFlowStore((s) => s.deleteFlow);
   const units = useVehicleUnitStore((s) => s.units);
+  const updatePhase = useVehicleUnitStore((s) => s.updatePhase);
+  const addCase = useMassCaseStore((s) => s.addCase);
 
   const flow = analysisFlowId ? flows.find((f) => f.id === analysisFlowId) : null;
-  const project = flow ? projects.find((p) => p.id === flow.projectId) : null;
-  // このフローを所有する号機（PT/FT）。あれば「号機へ戻る」を出す。
+  // このフローを所有する号機（PT/FT）。あれば共通パラメータ（マスタ/機体諸元）を上部に出す。
   const ownerUnit = flow ? units.find((u) => u.pt.flowId === flow.id || u.ft.flowId === flow.id) ?? null : null;
+  const ownerPhase: 'PT' | 'FT' | null = ownerUnit && flow
+    ? (ownerUnit.pt.flowId === flow.id ? 'PT' : 'FT')
+    : null;
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
@@ -240,18 +243,77 @@ export const AnalysisFlowEditor: React.FC = () => {
     }
   };
 
+  // 共通パラメータ（① マスタ）クイックリンク
+  const MASTERS: { label: string; icon: string; view: AppView }[] = [
+    { label: '機体形状', icon: 'rulers', view: 'shapeMaster' },
+    { label: '空力係数', icon: 'wind', view: 'aeroCoeffMaster' },
+    { label: '推進系', icon: 'fire', view: 'propulsionMaster' },
+    { label: '風', icon: 'tornado', view: 'windMaster' },
+    { label: '代表破片', icon: 'hexagon', view: 'debrisMaster' },
+    { label: '故障率', icon: 'exclamation-triangle', view: 'failureRateMaster' },
+    { label: 'アンテナ', icon: 'broadcast', view: 'vehicleAntennaData' },
+  ];
+
+  // ② 機体諸元（条件設定）を開く（無ければ作成）
+  const openConditions = () => {
+    if (!ownerUnit || !ownerPhase) return;
+    const ps = ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft;
+    let mc = ps.massCaseId;
+    if (!mc) {
+      const c = addCase({ projectId: ownerUnit.projectId, name: `${ownerUnit.unitNo}号機 ${PHASE_META[ownerPhase].label} 機体諸元`, memo: '', createdBy: '' });
+      mc = c.id;
+      updatePhase(ownerUnit.id, ownerPhase, { massCaseId: mc });
+    }
+    navigate('massModel', { projectId: ownerUnit.projectId, massCaseId: mc });
+  };
+
   return (
     <div>
-      <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        {/* 号機由来のときは PhaseWorkBar が戻る導線を持つので、ここはスタンドアロン時のみ */}
+      {/* 全解析の共通パラメータ（号機フェーズのフローのみ）: ② 機体諸元 ＋ ① マスタ */}
+      {ownerUnit && (
+        <div className="card mb-2" style={{ borderColor: '#cfe0ff' }}>
+          <div className="card-body py-2 d-flex align-items-center gap-2 flex-wrap" style={{ background: '#f5f9ff' }}>
+            <span className="fw-semibold small text-primary me-1"><i className="bi bi-sliders me-1" />共通パラメータ</span>
+            <button className="btn btn-sm btn-primary" onClick={openConditions} title="機体諸元（このフェーズ共通の条件設定）を開く">
+              <i className="bi bi-box-seam me-1" />機体諸元（条件設定）
+            </button>
+            <span style={{ borderLeft: '1px solid #cfe0ff', height: 22, margin: '0 4px' }} />
+            <span className="text-muted small">マスタ:</span>
+            {MASTERS.map((m) => (
+              <button key={m.view} className="btn btn-sm btn-outline-secondary" onClick={() => navigate(m.view)} title={`${m.label}データ（マスタ）を開く`}>
+                <i className={`bi bi-${m.icon} me-1`} />{m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* フロー操作ツールバー（コンテキストは上部の号機ワークバー/パンくずが提供） */}
+      <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
         {!ownerUnit && (
-          <button
-            className="btn btn-outline-secondary btn-sm"
-            onClick={() => navigate('analysisFlow')}
-            title="解析フロー一覧へ"
-          >
-            <i className="bi bi-arrow-left me-1" />一覧
-          </button>
+          <>
+            <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate('analysisFlow')} title="解析フロー一覧へ">
+              <i className="bi bi-arrow-left me-1" />一覧
+            </button>
+            {editingName ? (
+              <input
+                className="form-control form-control-sm fw-semibold"
+                style={{ maxWidth: 320 }}
+                value={nameDraft}
+                autoFocus
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={() => { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }
+                  if (e.key === 'Escape') { setNameDraft(flow.name); setEditingName(false); }
+                }}
+              />
+            ) : (
+              <span className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => { setNameDraft(flow.name); setEditingName(true); }} title="クリックして名前を編集">
+                {flow.name}
+              </span>
+            )}
+          </>
         )}
         <button
           className="btn btn-outline-primary btn-sm"
@@ -260,35 +322,6 @@ export const AnalysisFlowEditor: React.FC = () => {
         >
           <i className="bi bi-stars me-1" />テンプレート
         </button>
-        <i className="bi bi-diagram-3 text-primary" />
-        {editingName ? (
-          <input
-            className="form-control form-control-sm fw-semibold"
-            style={{ maxWidth: 320, fontSize: '1.05rem' }}
-            value={nameDraft}
-            autoFocus
-            onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={() => { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }
-              if (e.key === 'Escape') { setNameDraft(flow.name); setEditingName(false); }
-            }}
-          />
-        ) : (
-          <h1
-            className="page-title mb-0"
-            style={{ fontSize: '1.15rem', cursor: 'pointer' }}
-            onClick={() => { setNameDraft(flow.name); setEditingName(true); }}
-            title="クリックして名前を編集"
-          >
-            {flow.name}
-          </h1>
-        )}
-        {project && (
-          <span className="badge bg-primary-subtle text-primary" style={{ fontSize: '0.75rem' }}>
-            {project.name}
-          </span>
-        )}
         {totalSteps > 0 && (
           <span
             className={`badge ${
@@ -296,19 +329,17 @@ export const AnalysisFlowEditor: React.FC = () => {
               flowStatus === 'in_progress' ? 'bg-warning text-dark' :
               'bg-secondary'
             }`}
-            style={{ fontSize: '0.7rem' }}
+            style={{ fontSize: '0.72rem' }}
           >
             {flowStatus === 'done' ? '完了' : flowStatus === 'in_progress' ? '実施中' : '未実施'}
             {` ${doneCount}/${totalSteps}`}
           </span>
         )}
-        <button
-          className="btn btn-outline-danger btn-sm ms-auto"
-          onClick={handleDelete}
-          title="フローを削除"
-        >
-          <i className="bi bi-trash" />
-        </button>
+        {!ownerUnit && (
+          <button className="btn btn-outline-danger btn-sm ms-auto" onClick={handleDelete} title="フローを削除">
+            <i className="bi bi-trash" />
+          </button>
+        )}
       </div>
 
       <FlowCard flow={flow} projectId={flow.projectId} hideHeader />

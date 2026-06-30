@@ -99,7 +99,7 @@ export const VehicleUnitDetail: React.FC = () => {
             </tbody>
           </table>
           <div className="text-muted small mt-2">
-            <i className="bi bi-info-circle me-1" />上部の「{meta.label}」タブから条件設定・解析フローを開けます。
+            <i className="bi bi-info-circle me-1" />上部の「{meta.label}」タブで解析フローを開き、その上部の「共通パラメータ」から条件設定・マスタを設定します。
           </div>
         </div>
       </div>

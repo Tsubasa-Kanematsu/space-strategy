@@ -1,14 +1,11 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { ConditionJsonIO } from '../common/ConditionJsonIO';
 import { useAnalysisStore } from '../../stores/analysisStore';
 import { useMasterDataStore } from '../../stores/masterDataStore';
-import { useMassCaseStore } from '../../stores/massCaseStore';
-import { useRocketShapeStore } from '../../stores/rocketShapeStore';
-import { usePropulsionStore } from '../../stores/propulsionStore';
 import { useAppStore } from '../../stores/appStore';
 import type { AnalysisServiceType } from '../../types';
 import { SERVICE_META } from './analysisServiceMeta';
-import { DB_SET_META, ANALYSIS_MASTER_REFS, ANALYSIS_CONDITION_SETS, SERVICE_UPSTREAM, setMassModelInitialTab, type DbSet } from './dbSetMeta';
+import { SERVICE_UPSTREAM } from './dbSetMeta';
 
 // ---- Helper: numeric input ----
 const Num: React.FC<{
@@ -579,27 +576,6 @@ const AeroAnalysisForm: React.FC<{ cond: Record<string, unknown>; onChange: (c: 
   );
 };
 
-// ---- DB set availability check ----
-function useDbSetStatus(massCaseId: string | null) {
-  const allComponents = useMassCaseStore((s) => s.components);
-  const geometries = useRocketShapeStore((s) => s.geometries);
-  const stages = usePropulsionStore((s) => s.stages);
-  return useMemo(() => {
-    if (!massCaseId) return {} as Record<DbSet, boolean>;
-    const comps = allComponents.filter((c) => c.massCaseId === massCaseId);
-    return {
-      mass:        comps.some((c) => c.allocatedMass !== null || c.actualMass !== null),
-      cg:          comps.some((c) => c.cgX !== null && c.cgX !== undefined),
-      inertia:     comps.some((c) => c.ixx !== null && c.ixx !== undefined),
-      material:    comps.some((c) => !!c.materialName),
-      debris:      comps.some((c) => !!c.debrisShapeType),
-      errorSource: comps.some((c) => (c.errorSources?.length ?? 0) > 0),
-      shape:       geometries.some((g) => g.massCaseId === massCaseId),
-      propulsion:  stages.some((s) => s.massCaseId === massCaseId),
-    } satisfies Record<DbSet, boolean>;
-  }, [allComponents, massCaseId, geometries, stages]);
-}
-
 interface AnalysisConditionViewProps {
   /** モーダルから直接渡す場合に使用。省略時は appStore の値を参照。 */
   caseId?: string;
@@ -622,10 +598,7 @@ export const AnalysisConditionView: React.FC<AnalysisConditionViewProps> = ({
   const serviceType = analysisService as AnalysisServiceType;
   const meta = serviceType ? SERVICE_META[serviceType] : null;
 
-  const dbSetStatus = useDbSetStatus(analysisCase?.massCaseId ?? null);
-  // ① マスタデータ（号機共通） ② 条件設定（機体諸元・解析共通）
-  const masterRefs = serviceType ? ANALYSIS_MASTER_REFS[serviceType] : [];
-  const conditionSets = serviceType ? ANALYSIS_CONDITION_SETS[serviceType] : [];
+  // ① マスタデータ・② 条件設定（機体諸元）は解析フロー画面の「共通パラメータ」で全解析共通に設定する。
 
   // 上流解析ケース
   const upstreamServiceType = serviceType ? SERVICE_UPSTREAM[serviceType] : undefined;
@@ -696,89 +669,12 @@ export const AnalysisConditionView: React.FC<AnalysisConditionViewProps> = ({
         </div>
 
         <div className="col-lg-6">
-          {/* ① マスタデータ（号機共通） */}
-          <div className="card p-3 mb-3">
-            <h6 className="fw-semibold mb-1">
-              <span className="badge bg-info me-2">①</span>マスタデータ
-              <small className="text-muted ms-2 fw-normal">号機によらず共通</small>
-            </h6>
-            <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>
-              号機横断で共通のマスタ。編集は「マスタデータ」画面で行います。
-            </p>
-            {masterRefs.length === 0 ? (
-              <div className="text-muted" style={{ fontSize: '0.83rem' }}>この解析が参照するマスタはありません。</div>
-            ) : (
-              <div className="d-flex flex-column gap-2">
-                {masterRefs.map((ref) => (
-                  <button
-                    key={ref.key}
-                    className="btn btn-sm d-flex align-items-center gap-2 text-start"
-                    style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 6 }}
-                    onClick={() => navigate(ref.view)}
-                    title={`${ref.label}（マスタデータ）を開く`}
-                  >
-                    <span className="badge bg-info-subtle text-info" style={{ minWidth: 28 }}>
-                      <i className={`bi bi-${ref.icon}`} />
-                    </span>
-                    <span className="flex-grow-1" style={{ fontSize: '0.83rem' }}>{ref.label}</span>
-                    <i className="bi bi-box-arrow-up-right text-muted" style={{ fontSize: '0.72rem' }} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ② 条件設定（機体諸元・解析共通） */}
-          <div className="card p-3 mb-3">
-            <h6 className="fw-semibold mb-1">
-              <span className="badge bg-primary me-2">②</span>条件設定（機体諸元）
-              <small className="text-muted ms-2 fw-normal">解析の種類によらず共通</small>
-            </h6>
-            <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>
-              このフェーズの条件設定。クリックで該当データへ移動します。
-            </p>
-            {conditionSets.length === 0 ? (
-              <div className="text-muted" style={{ fontSize: '0.83rem' }}>この解析が参照する機体諸元はありません。</div>
-            ) : (
-              <div className="d-flex flex-column gap-2">
-                {conditionSets.map((set) => {
-                  const setMeta = DB_SET_META[set];
-                  const hasData = dbSetStatus[set] ?? false;
-                  return (
-                    <button
-                      key={set}
-                      className="btn btn-sm d-flex align-items-center gap-2 text-start"
-                      style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 6 }}
-                      onClick={() => {
-                        if (setMeta.view === 'massModel' && setMeta.massModelTab) {
-                          setMassModelInitialTab(setMeta.massModelTab);
-                        }
-                        navigate(setMeta.view, {
-                          projectId: analysisCase.projectId,
-                          massCaseId: analysisCase.massCaseId,
-                        });
-                      }}
-                      title={`条件設定（機体諸元）の「${setMeta.label}」へ移動`}
-                    >
-                      <span className={`badge ${setMeta.badgeClass}`} style={{ minWidth: 28 }}>
-                        <i className={`bi bi-${setMeta.icon}`} />
-                      </span>
-                      <span className="flex-grow-1" style={{ fontSize: '0.83rem' }}>{setMeta.label}</span>
-                      {hasData ? (
-                        <span className="badge bg-success-subtle text-success" style={{ fontSize: '0.7rem' }}>
-                          <i className="bi bi-check-circle me-1" />データあり
-                        </span>
-                      ) : (
-                        <span className="badge bg-warning-subtle text-warning" style={{ fontSize: '0.7rem' }}>
-                          <i className="bi bi-exclamation-circle me-1" />未入力
-                        </span>
-                      )}
-                      <i className="bi bi-box-arrow-up-right text-muted" style={{ fontSize: '0.72rem' }} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+          <div className="alert alert-light border d-flex align-items-start gap-2 py-2 mb-3" style={{ fontSize: '0.8rem' }}>
+            <i className="bi bi-info-circle text-muted mt-1" />
+            <span className="text-muted">
+              マスタデータ（号機共通）と条件設定（機体諸元）は、解析フロー画面上部の「共通パラメータ」から
+              全解析共通で設定します。
+            </span>
           </div>
 
           {/* 上流解析ケース */}

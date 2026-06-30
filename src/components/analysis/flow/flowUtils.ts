@@ -210,8 +210,9 @@ export function stepsToEdges(sortedSteps: AnalysisFlowStep[]): Edge[] {
       id: `seq-${e.source}-${e.target}`,
       source: e.source,
       target: e.target,
-      sourceHandle: 'bottom',
-      targetHandle: 'top',
+      // 横（左→右）フロー: 右ハンドルから出て左ハンドルへ入る
+      sourceHandle: 'right',
+      targetHandle: 'left',
       type: 'default',
       style: { stroke: '#94a3b8', strokeWidth: 2 },
       markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
