@@ -40,10 +40,10 @@ export const FEATURE_FLAGS = {
   db: {
     massModel: true,        // コンポーネント構成（質量/重心/慣性/材質/搭載位置）
     parameters: true,       // パラメータ
-    rocketShapeData: false, // 空力形状（号機タブには出さず、マスタで管理）
-    propulsionData: false,  // 推進系
-    debrisShapeData: false, // 破片形状
-    errorSourceData: false, // 誤差源
+    rocketShapeData: true,  // 空力形状
+    propulsionData: true,   // 推進系
+    debrisShapeData: true,  // 破片形状
+    errorSourceData: true,  // 誤差源
   },
 
   // ── プロジェクト詳細タブ ──────────────────────────────────────────────────────
