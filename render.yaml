@@ -15,7 +15,8 @@ services:
     name: space-strategy
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    # NODE_ENV=production だと npm が devDeps(vite/tsc/@types)を省くため、ビルド時のみ強制インストール
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
     healthCheckPath: /healthz
     envVars:
