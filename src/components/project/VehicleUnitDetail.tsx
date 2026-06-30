@@ -3,9 +3,17 @@ import { useAppStore } from '../../stores/appStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { useApplicationStore } from '../../stores/applicationStore';
-import { SERVICE_META } from '../analysis/analysisServiceMeta';
-import { analysisProgress, isAnalysisComplete } from '../../types/vehicleUnit';
+import { useMassCaseStore } from '../../stores/massCaseStore';
+import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
+import { isPtComplete, PHASE_META, PHASE_STATUSES } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
+import type { AnalysisPhase, PhaseState, PhaseStatus } from '../../types';
+
+const STATUS_BADGE: Record<PhaseStatus, string> = {
+  未着手: 'bg-light text-muted',
+  実施中: 'bg-info-subtle text-info',
+  完了: 'bg-success',
+};
 
 export const VehicleUnitDetail: React.FC = () => {
   const projectId = useAppStore((s) => s.projectId);
@@ -13,10 +21,11 @@ export const VehicleUnitDetail: React.FC = () => {
   const navigate = useAppStore((s) => s.navigate);
   const getProject = useProjectStore((s) => s.getProject);
   const getUnit = useVehicleUnitStore((s) => s.getUnit);
-  const markAnalysisDone = useVehicleUnitStore((s) => s.markAnalysisDone);
-  const updateUnit = useVehicleUnitStore((s) => s.updateUnit);
+  const updatePhase = useVehicleUnitStore((s) => s.updatePhase);
   const getByUnit = useApplicationStore((s) => s.getByUnit);
   const upsertForUnit = useApplicationStore((s) => s.upsertForUnit);
+  const addCase = useMassCaseStore((s) => s.addCase);
+  const addFlow = useAnalysisFlowStore((s) => s.addFlow);
 
   const unit = vehicleUnitId ? getUnit(vehicleUnitId) : undefined;
 
@@ -35,26 +44,90 @@ export const VehicleUnitDetail: React.FC = () => {
   }
 
   const project = getProject(projectId);
-  const prog = analysisProgress(unit);
-  const pct = Math.round(prog * 100);
-  const complete = isAnalysisComplete(unit);
+  const ptComplete = isPtComplete(unit);
   const app = getByUnit(unit.id);
 
-  const runAnalysis = (svc: typeof unit.requiredAnalyses[number]) => {
-    markAnalysisDone(unit.id, svc);
-    // 進捗に応じてステータスを進める
-    const willComplete = isAnalysisComplete({
-      requiredAnalyses: unit.requiredAnalyses,
-      completedAnalyses: [...unit.completedAnalyses, svc],
-    });
-    updateUnit(unit.id, { status: willComplete ? '解析完了' : '解析中' });
+  const phaseState = (phase: AnalysisPhase): PhaseState => (phase === 'PT' ? unit.pt : unit.ft);
+
+  // このフェーズ専用の機体諸元（DB）を開く（無ければ作成）
+  const openMass = (phase: AnalysisPhase) => {
+    const ps = phaseState(phase);
+    let mcId = ps.massCaseId;
+    if (!mcId) {
+      const created = addCase({
+        projectId,
+        name: `${unit.unitNo}号機 ${PHASE_META[phase].label} 機体諸元`,
+        memo: '',
+        createdBy: '',
+      });
+      mcId = created.id;
+      updatePhase(unit.id, phase, { massCaseId: mcId });
+    }
+    navigate('massModel', { projectId, massCaseId: mcId });
+  };
+
+  // このフェーズ専用の解析パイプライン（解析フロー）を開く（無ければ作成）
+  const openFlow = (phase: AnalysisPhase) => {
+    const ps = phaseState(phase);
+    let fId = ps.flowId;
+    if (!fId) {
+      const created = addFlow({
+        projectId,
+        name: `${unit.unitNo}号機 ${PHASE_META[phase].label} パイプライン`,
+        steps: [],
+      });
+      fId = created.id;
+      updatePhase(unit.id, phase, { flowId: fId });
+    }
+    navigate('analysisFlowDetail', { analysisFlowId: fId, projectId });
   };
 
   const generateApplication = () => {
     const data = buildApplicationData({ unit, projectName: project?.name ?? '' });
     const created = upsertForUnit(data);
-    updateUnit(unit.id, { status: '申請準備' });
     navigate('applicationDetail', { applicationId: created.id });
+  };
+
+  // フェーズパネル（コンポーネント化せず関数で返す。再マウント回避）
+  const renderPhase = (phase: AnalysisPhase) => {
+    const ps = phaseState(phase);
+    const meta = PHASE_META[phase];
+    return (
+      <div className="card h-100">
+        <div className="card-header d-flex justify-content-between align-items-center">
+          <span className="fw-semibold"><i className={`bi bi-${meta.icon} me-1`} />{meta.label}</span>
+          <span className={`badge ${STATUS_BADGE[ps.status]}`}>{ps.status}</span>
+        </div>
+        <div className="card-body d-flex flex-column">
+          <div className="mb-2">
+            <label className="form-label small fw-medium mb-1"><i className="bi bi-box-seam me-1" />機体諸元</label>
+            <button className="btn btn-outline-primary btn-sm w-100 text-start d-flex justify-content-between align-items-center" onClick={() => openMass(phase)}>
+              <span>{ps.massCaseId ? '機体諸元を開く' : '機体諸元を作成して開く'}</span>
+              <i className="bi bi-arrow-right" />
+            </button>
+          </div>
+
+          <div className="mb-3">
+            <label className="form-label small fw-medium mb-1"><i className="bi bi-diagram-3 me-1" />解析パイプライン</label>
+            <button className="btn btn-outline-primary btn-sm w-100 text-start d-flex justify-content-between align-items-center" onClick={() => openFlow(phase)}>
+              <span>{ps.flowId ? 'パイプラインを開く' : 'パイプラインを作成して開く'}</span>
+              <i className="bi bi-arrow-right" />
+            </button>
+          </div>
+
+          <div className="mt-auto">
+            <label className="form-label small fw-medium mb-1">ステータス</label>
+            <select
+              className="form-select form-select-sm"
+              value={ps.status}
+              onChange={(e) => updatePhase(unit.id, phase, { status: e.target.value as PhaseStatus })}
+            >
+              {PHASE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -81,120 +154,50 @@ export const VehicleUnitDetail: React.FC = () => {
               <i className="bi bi-file-earmark-text me-1" />申請書を開く
             </button>
           ) : (
-            <button className="btn btn-primary btn-sm" disabled={!complete} onClick={generateApplication} title={complete ? '' : '全ての必要解析が完了すると生成できます'}>
+            <button className="btn btn-primary btn-sm" disabled={!ptComplete} onClick={generateApplication} title={ptComplete ? '' : 'PT解析を「完了」にすると生成できます'}>
               <i className="bi bi-magic me-1" />申請書を自動生成
             </button>
           )}
         </div>
       </div>
 
-      <div className="row g-3">
-        {/* 機体諸元 */}
-        <div className="col-md-4">
-          <div className="card h-100">
-            <div className="card-header fw-semibold">
-              <i className="bi bi-box-seam me-1" />機体諸元
-            </div>
-            <div className="card-body">
-              <p className="text-muted small mb-3">
-                質量・重心・形状などの機体諸元データ。マスタデータ（機体形状・空力係数）も参照されます。
-              </p>
-              <button
-                className="btn btn-outline-primary btn-sm w-100 mb-2"
-                onClick={() => navigate('analysisHub', { projectId })}
-              >
-                <i className="bi bi-diagram-2 me-1" />解析・データを開く
-              </button>
-              <button
-                className="btn btn-outline-secondary btn-sm w-100"
-                onClick={() => navigate('masterDataHub')}
-              >
-                <i className="bi bi-archive me-1" />マスタデータ
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 解析進捗 */}
-        <div className="col-md-8">
-          <div className="card h-100">
-            <div className="card-header d-flex justify-content-between align-items-center">
-              <span className="fw-semibold"><i className="bi bi-cpu me-1" />解析進捗</span>
-              <span className="text-muted small">
-                {unit.completedAnalyses.filter((a) => unit.requiredAnalyses.includes(a)).length}/{unit.requiredAnalyses.length} 完了
-              </span>
-            </div>
-            <div className="card-body">
-              <div className="progress mb-3" style={{ height: 8 }}>
-                <div className={`progress-bar ${complete ? 'bg-success' : ''}`} style={{ width: `${pct}%` }} />
-              </div>
-              {unit.requiredAnalyses.length === 0 ? (
-                <p className="text-muted small mb-0">必要解析が設定されていません。号機編集で設定してください。</p>
-              ) : (
-                <div className="table-responsive">
-                  <table className="table table-sm align-middle mb-0">
-                    <tbody>
-                      {unit.requiredAnalyses.map((svc) => {
-                        const done = unit.completedAnalyses.includes(svc);
-                        const meta = SERVICE_META[svc];
-                        return (
-                          <tr key={svc}>
-                            <td style={{ width: 28 }}>
-                              <i className={`bi bi-${meta.icon}`} />
-                            </td>
-                            <td>{meta.label}</td>
-                            <td style={{ width: 90 }}>
-                              {done ? (
-                                <span className="badge bg-success"><i className="bi bi-check-lg" /> 完了</span>
-                              ) : (
-                                <span className="badge bg-light text-muted">未実施</span>
-                              )}
-                            </td>
-                            <td style={{ width: 110 }} className="text-end">
-                              {done ? (
-                                <button
-                                  className="btn btn-sm btn-link p-0 text-muted"
-                                  onClick={() => navigate('analysisHub', { projectId })}
-                                >
-                                  結果を見る
-                                </button>
-                              ) : (
-                                <button
-                                  className="btn btn-sm btn-outline-primary"
-                                  onClick={() => runAnalysis(svc)}
-                                >
-                                  <i className="bi bi-play-fill" />実行
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {complete && !app && (
-                <div className="alert alert-success d-flex align-items-center gap-2 mt-3 mb-0 py-2">
-                  <i className="bi bi-check-circle-fill" />
-                  <span className="small">全ての必要解析が完了しました。申請書を自動生成できます。</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {unit.memo && (
-          <div className="col-12">
-            <div className="card">
-              <div className="card-header fw-semibold"><i className="bi bi-journal-text me-1" />メモ</div>
-              <div className="card-body">
-                <p className="mb-0 small text-muted" style={{ whiteSpace: 'pre-wrap' }}>{unit.memo}</p>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* 2フェーズのワークスペース */}
+      <div className="row g-3 mb-3">
+        <div className="col-md-6">{renderPhase('PT')}</div>
+        <div className="col-md-6">{renderPhase('FT')}</div>
       </div>
+
+      {/* 内閣府申請（PT解析の結果を使用） */}
+      <div className="card mb-3">
+        <div className="card-header fw-semibold"><i className="bi bi-file-earmark-text me-1" />内閣府申請（PT解析の結果）</div>
+        <div className="card-body">
+          {ptComplete ? (
+            app ? (
+              <div className="d-flex align-items-center gap-2">
+                <span className={`badge bg-${app.status === '提出済み' || app.status === '受理' ? 'success' : 'primary'}`}>{app.status}</span>
+                <span className="small text-muted">申請書を生成済みです。</span>
+                <button className="btn btn-sm btn-link p-0" onClick={() => navigate('applicationDetail', { applicationId: app.id })}>開く</button>
+              </div>
+            ) : (
+              <div className="alert alert-success d-flex align-items-center gap-2 mb-0 py-2">
+                <i className="bi bi-check-circle-fill" />
+                <span className="small">PT解析が完了しました。この結果で申請書を自動生成できます（右上のボタン）。</span>
+              </div>
+            )
+          ) : (
+            <p className="text-muted small mb-0">PT解析を「完了」にすると、その結果で申請書を自動生成できます。</p>
+          )}
+        </div>
+      </div>
+
+      {unit.memo && (
+        <div className="card">
+          <div className="card-header fw-semibold"><i className="bi bi-journal-text me-1" />メモ</div>
+          <div className="card-body">
+            <p className="mb-0 small text-muted" style={{ whiteSpace: 'pre-wrap' }}>{unit.memo}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

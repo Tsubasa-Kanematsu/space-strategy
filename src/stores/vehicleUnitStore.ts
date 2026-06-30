@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { cloudStorage } from '../utils/cloudStorage';
 import { v4 as uuidv4 } from 'uuid';
-import type { VehicleUnit } from '../types';
+import type { AnalysisPhase, PhaseState, VehicleUnit } from '../types';
 
 interface VehicleUnitStore {
   units: VehicleUnit[];
@@ -11,11 +11,12 @@ interface VehicleUnitStore {
   deleteUnit: (id: string) => void;
   getUnit: (id: string) => VehicleUnit | undefined;
   unitsByProject: (projectId: string) => VehicleUnit[];
-  /** 解析完了をマーク（完了済み配列に追加） */
-  markAnalysisDone: (id: string, type: VehicleUnit['completedAnalyses'][number]) => void;
+  /** フェーズ（PT/FT）の状態を更新する（機体諸元ID・フローID・ステータス） */
+  updatePhase: (id: string, phase: AnalysisPhase, patch: Partial<PhaseState>) => void;
 }
 
 const now = () => new Date().toISOString();
+const phaseKey = (phase: AnalysisPhase): 'pt' | 'ft' => (phase === 'PT' ? 'pt' : 'ft');
 
 export const useVehicleUnitStore = create<VehicleUnitStore>()(
   persist(
@@ -48,12 +49,12 @@ export const useVehicleUnitStore = create<VehicleUnitStore>()(
       unitsByProject: (projectId) =>
         get().units.filter((u) => u.projectId === projectId),
 
-      markAnalysisDone: (id, type) =>
+      updatePhase: (id, phase, patch) =>
         set((s) => ({
           units: s.units.map((u) => {
             if (u.id !== id) return u;
-            if (u.completedAnalyses.includes(type)) return u;
-            return { ...u, completedAnalyses: [...u.completedAnalyses, type], updatedAt: now() };
+            const key = phaseKey(phase);
+            return { ...u, [key]: { ...u[key], ...patch }, updatedAt: now() };
           }),
         })),
     }),

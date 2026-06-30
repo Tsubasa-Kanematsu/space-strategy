@@ -6,20 +6,22 @@ import { useApplicationStore } from '../../stores/applicationStore';
 import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 import { ALL_SERVICES, SERVICE_META } from '../analysis/analysisServiceMeta';
 import { useFlags } from '../../stores/featureFlagsStore';
-import {
-  analysisProgress,
-  isAnalysisComplete,
-  VEHICLE_UNIT_STATUSES,
-} from '../../types/vehicleUnit';
-import type { AnalysisServiceType, VehicleUnit, VehicleUnitStatus } from '../../types';
+import { VEHICLE_UNIT_STATUSES } from '../../types/vehicleUnit';
+import type { AnalysisServiceType, PhaseStatus, VehicleUnit, VehicleUnitStatus } from '../../types';
 
 const STATUS_COLOR: Record<VehicleUnitStatus, string> = {
   計画: 'secondary',
-  解析中: 'info',
-  解析完了: 'primary',
-  申請準備: 'warning',
+  PT実施中: 'info',
   申請済み: 'success',
+  FT確認中: 'info',
+  打上可: 'success',
   打上完了: 'dark',
+};
+
+const PHASE_BADGE: Record<PhaseStatus, string> = {
+  未着手: 'bg-light text-muted',
+  実施中: 'bg-info-subtle text-info',
+  完了: 'bg-success',
 };
 
 interface FormState {
@@ -51,7 +53,6 @@ export const VehicleUnitList: React.FC = () => {
   const getByUnit = useApplicationStore((s) => s.getByUnit);
   const FEATURE_FLAGS = useFlags();
 
-  // 運用向け解析（空力など無効化されたものを除く）
   const operationalServices = ALL_SERVICES.filter(
     (s) => (FEATURE_FLAGS.analysis as Record<string, boolean>)[s]
   );
@@ -114,7 +115,8 @@ export const VehicleUnitList: React.FC = () => {
         status: form.status,
         memo: form.memo,
         requiredAnalyses: form.requiredAnalyses,
-        completedAnalyses: [],
+        pt: { status: '未着手' },
+        ft: { status: '未着手' },
       });
     }
     setShowModal(false);
@@ -146,10 +148,10 @@ export const VehicleUnitList: React.FC = () => {
           <i className="bi bi-arrow-left me-1" />プロジェクト一覧
         </button>
       </div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="d-flex justify-content-between align-items-center mb-2">
         <div>
           <h1 className="page-title mb-0">{project?.name ?? 'プロジェクト'}</h1>
-          <small className="text-muted">号機一覧</small>
+          <small className="text-muted">号機一覧 — 各号機で PT解析（計画時）／FT解析（飛行時）の2フェーズ。各フェーズは機体諸元＋パイプラインを持つ</small>
         </div>
         <div className="action-toolbar">
           <button className="btn btn-primary btn-sm" onClick={openCreate}>
@@ -163,28 +165,26 @@ export const VehicleUnitList: React.FC = () => {
           <table className="table table-hover mb-0 align-middle">
             <thead>
               <tr>
-                <th style={{ width: 90 }}>号機</th>
+                <th style={{ width: 80 }}>号機</th>
                 <th>ミッション名</th>
-                <th style={{ width: 130 }}>打上予定日</th>
+                <th style={{ width: 120 }}>打上予定日</th>
                 <th style={{ width: 110 }}>ステータス</th>
-                <th style={{ width: 200 }}>解析進捗</th>
-                <th style={{ width: 120 }}>申請書</th>
+                <th style={{ width: 110 }}><i className="bi bi-clipboard-data me-1" />PT解析</th>
+                <th style={{ width: 110 }}><i className="bi bi-shield-check me-1" />FT解析</th>
+                <th style={{ width: 110 }}>申請書</th>
                 <th className="col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
               {projectUnits.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center text-muted py-4">
+                  <td colSpan={8} className="text-center text-muted py-4">
                     <i className="bi bi-rocket fs-4 d-block mb-2" />
                     号機がありません。「号機を追加」から作成してください。
                   </td>
                 </tr>
               ) : (
                 projectUnits.map((u) => {
-                  const prog = analysisProgress(u);
-                  const pct = Math.round(prog * 100);
-                  const complete = isAnalysisComplete(u);
                   const app = getByUnit(u.id);
                   return (
                     <tr key={u.id}>
@@ -198,32 +198,16 @@ export const VehicleUnitList: React.FC = () => {
                         </button>
                       </td>
                       <td>{u.missionName}</td>
-                      <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
-                        {u.launchDate || '—'}
-                      </td>
-                      <td>
-                        <span className={`badge bg-${STATUS_COLOR[u.status]}`}>{u.status}</span>
-                      </td>
-                      <td>
-                        <div className="d-flex align-items-center gap-2">
-                          <div className="progress flex-grow-1" style={{ height: 6 }}>
-                            <div
-                              className={`progress-bar ${complete ? 'bg-success' : ''}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <small className="text-muted" style={{ minWidth: 70 }}>
-                            {u.completedAnalyses.filter((a) => u.requiredAnalyses.includes(a)).length}/
-                            {u.requiredAnalyses.length} 解析
-                          </small>
-                        </div>
-                      </td>
+                      <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{u.launchDate || '—'}</td>
+                      <td><span className={`badge bg-${STATUS_COLOR[u.status]}`}>{u.status}</span></td>
+                      <td><span className={`badge ${PHASE_BADGE[u.pt.status]}`}>{u.pt.status}</span></td>
+                      <td><span className={`badge ${PHASE_BADGE[u.ft.status]}`}>{u.ft.status}</span></td>
                       <td>
                         {app ? (
                           <span className={`badge bg-${app.status === '提出済み' || app.status === '受理' ? 'success' : 'primary'}`}>
                             {app.status}
                           </span>
-                        ) : complete ? (
+                        ) : u.pt.status === '完了' ? (
                           <span className="badge bg-warning">生成可</span>
                         ) : (
                           <span className="text-muted small">—</span>
@@ -237,18 +221,10 @@ export const VehicleUnitList: React.FC = () => {
                         >
                           <i className="bi bi-box-arrow-in-right" />
                         </button>
-                        <button
-                          className="btn btn-sm btn-outline-secondary me-1"
-                          onClick={() => openEdit(u)}
-                          title="編集"
-                        >
+                        <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => openEdit(u)} title="編集">
                           <i className="bi bi-pencil" />
                         </button>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => setConfirmDelete(u)}
-                          title="削除"
-                        >
+                        <button className="btn btn-sm btn-outline-danger" onClick={() => setConfirmDelete(u)} title="削除">
                           <i className="bi bi-trash" />
                         </button>
                       </td>
@@ -273,56 +249,29 @@ export const VehicleUnitList: React.FC = () => {
                 <div className="row g-3">
                   <div className="col-3">
                     <label className="form-label fw-medium">号機番号 <span className="text-danger">*</span></label>
-                    <input
-                      className="form-control"
-                      value={form.unitNo}
-                      onChange={(e) => setForm({ ...form, unitNo: e.target.value })}
-                      placeholder="例: 1"
-                      autoFocus
-                    />
+                    <input className="form-control" value={form.unitNo} onChange={(e) => setForm({ ...form, unitNo: e.target.value })} placeholder="例: 1" autoFocus />
                   </div>
                   <div className="col-9">
                     <label className="form-label fw-medium">ミッション名 <span className="text-danger">*</span></label>
-                    <input
-                      className="form-control"
-                      value={form.missionName}
-                      onChange={(e) => setForm({ ...form, missionName: e.target.value })}
-                      placeholder="例: 革新的衛星技術実証2号機"
-                    />
+                    <input className="form-control" value={form.missionName} onChange={(e) => setForm({ ...form, missionName: e.target.value })} placeholder="例: 革新的衛星技術実証2号機" />
                   </div>
                   <div className="col-4">
                     <label className="form-label fw-medium">打上予定日</label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={form.launchDate}
-                      onChange={(e) => setForm({ ...form, launchDate: e.target.value })}
-                    />
+                    <input type="date" className="form-control" value={form.launchDate} onChange={(e) => setForm({ ...form, launchDate: e.target.value })} />
                   </div>
                   <div className="col-4">
                     <label className="form-label fw-medium">ステータス</label>
-                    <select
-                      className="form-select"
-                      value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value as VehicleUnitStatus })}
-                    >
-                      {VEHICLE_UNIT_STATUSES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
+                    <select className="form-select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as VehicleUnitStatus })}>
+                      {VEHICLE_UNIT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div className="col-12">
                     <label className="form-label fw-medium">メモ</label>
-                    <textarea
-                      className="form-control"
-                      rows={2}
-                      value={form.memo}
-                      onChange={(e) => setForm({ ...form, memo: e.target.value })}
-                    />
+                    <textarea className="form-control" rows={2} value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
                   </div>
                   <div className="col-12">
                     <label className="form-label fw-medium">
-                      申請に必要な解析 <small className="text-muted">（{form.requiredAnalyses.length}件選択中）</small>
+                      実施する解析（申請書に記載） <small className="text-muted">（{form.requiredAnalyses.length}件選択中・パイプライン構成の目安）</small>
                     </label>
                     <div className="d-flex flex-wrap gap-2">
                       {operationalServices.map((svc) => {
@@ -345,11 +294,7 @@ export const VehicleUnitList: React.FC = () => {
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowModal(false)}>キャンセル</button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSave}
-                  disabled={!form.unitNo.trim() || !form.missionName.trim()}
-                >
+                <button className="btn btn-primary" onClick={handleSave} disabled={!form.unitNo.trim() || !form.missionName.trim()}>
                   {editTarget ? '保存' : '追加'}
                 </button>
               </div>

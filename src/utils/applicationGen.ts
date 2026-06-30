@@ -92,8 +92,9 @@ export function buildApplicationData(input: BuildAppInput): Pick<
   | 'status' | 'submittedTo' | 'generatedAt' | 'results' | 'ecValue' | 'ecPass'
 > {
   const { unit, projectName } = input;
+  // 内閣府申請は PT解析（計画時）の結果を用いる。申請書にはミッションの宣言解析項目を載せる。
   const seed = `${unit.id}:${unit.missionName}`;
-  const results: StandardizedAnalysisResult[] = unit.completedAnalyses.map((type) => ({
+  const results: StandardizedAnalysisResult[] = unit.requiredAnalyses.map((type) => ({
     type,
     label: SERVICE_META[type]?.label ?? type,
     metrics: metricsFor(type, seed),

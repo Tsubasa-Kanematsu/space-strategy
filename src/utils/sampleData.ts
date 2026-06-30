@@ -1075,47 +1075,47 @@ export function loadSampleData(): void {
   // ════════════════════════════════════════
   // 号機（運用フェーズ） — LV-Alpha の各フライト
   // ════════════════════════════════════════
-  // 1号機: 全解析完了 → 申請書を自動生成 → 内閣府へ提出済み
+  // 1号機: PT解析 完了 → 申請書を自動生成 → 内閣府へ提出済み。FT解析は実施中
   const unit1 = unitStore.addUnit({
     projectId: pid,
     unitNo: '1',
     missionName: '革新的衛星技術実証 LV-Alpha 初号機',
     launchDate: '2026-09-15',
     status: '申請済み',
-    massCaseId: dId,
     requiredAnalyses: [...OPERATIONAL_SERVICES],
-    completedAnalyses: [...OPERATIONAL_SERVICES],
-    memo: '初号機。使い捨て型・最終設計確定 DB を基準。全運用解析完了済み。',
+    pt: { massCaseId: dId, status: '完了' },
+    ft: { status: '実施中' },
+    memo: '初号機。使い捨て型・最終設計確定 DB を基準。PT解析完了・申請提出済み。FT解析（飛行時）を実施中。',
   });
   const app1 = appStore.upsertForUnit(
     buildApplicationData({ unit: unit1, projectName: project.name })
   );
   appStore.submit(app1.id);
 
-  // 2号機: 解析中（一部完了）
+  // 2号機: PT解析 実施中
   unitStore.addUnit({
     projectId: pid,
     unitNo: '2',
     missionName: '小型地球観測衛星 相乗りミッション',
     launchDate: '2026-12-10',
-    status: '解析中',
-    massCaseId: dId,
+    status: 'PT実施中',
     requiredAnalyses: [...OPERATIONAL_SERVICES],
-    completedAnalyses: ['flightAnalysis', 'dispersedFlight', 'loadAnalysis', 'shipHazard', 'piEc', 'debrisImpact'],
-    memo: '相乗り2機。軌道投入条件を再設定し再解析中。',
+    pt: { massCaseId: dId, status: '実施中' },
+    ft: { status: '未着手' },
+    memo: '相乗り2機。軌道投入条件を再設定し PT解析を実施中。',
   });
 
-  // 3号機: 計画段階（解析未着手）
+  // 3号機: 計画段階（PT解析 未着手）
   unitStore.addUnit({
     projectId: pid,
     unitNo: '3',
     missionName: '技術実証 第3次フライト',
     launchDate: '2027-03-20',
     status: '計画',
-    massCaseId: dId,
     requiredAnalyses: [...OPERATIONAL_SERVICES],
-    completedAnalyses: [],
-    memo: 'ミッション定義中。解析未着手。',
+    pt: { status: '未着手' },
+    ft: { status: '未着手' },
+    memo: 'ミッション定義中。PT解析 未着手。',
   });
 }
 

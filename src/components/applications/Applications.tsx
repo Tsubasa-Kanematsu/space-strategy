@@ -3,7 +3,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { useApplicationStore } from '../../stores/applicationStore';
-import { isAnalysisComplete } from '../../types/vehicleUnit';
+import { isPtComplete } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
 import type { ApplicationStatus } from '../../types';
 
@@ -26,9 +26,9 @@ export const Applications: React.FC = () => {
 
   const [tab, setTab] = useState<TabKey>('analyzed');
 
-  // 申請に必要な解析フローが完了した号機
+  // PT解析（計画時）が完了した号機 → 内閣府申請の対象
   const analyzedUnits = units
-    .filter((u) => isAnalysisComplete(u))
+    .filter((u) => isPtComplete(u))
     .sort((a, b) => (a.launchDate || '').localeCompare(b.launchDate || ''));
 
   // 提出済み / 受理 の申請書
