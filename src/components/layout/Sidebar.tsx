@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../stores/appStore';
+import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import type { AppView } from '../../types';
 import { useFlags } from '../../stores/featureFlagsStore';
 
@@ -30,11 +31,18 @@ const MASTER_LIKE_VIEWS: AppView[] = [
 const APPLICATION_LIKE_VIEWS: AppView[] = ['applications', 'applicationDetail'];
 
 export const Sidebar: React.FC = () => {
-  const { view, navigate, sidebarCollapsed } = useAppStore();
+  const { view, analysisFlowId, navigate, sidebarCollapsed } = useAppStore();
+  const units = useVehicleUnitStore((s) => s.units);
   const FEATURE_FLAGS = useFlags();
 
-  const isProjectActive = PROJECT_LIKE_VIEWS.includes(view);
-  const isAnalysisActive = ANALYSIS_LIKE_VIEWS.includes(view);
+  // 号機のフェーズに属する解析フローを開いている場合は「プロジェクト」配下とみなす
+  // （同じ号機・同じフェーズの隣り合う操作でサイドバーのハイライトが割れないように）
+  const flowOwnedByUnit = !!analysisFlowId && units.some(
+    (u) => u.pt.flowId === analysisFlowId || u.ft.flowId === analysisFlowId
+  );
+
+  const isProjectActive = PROJECT_LIKE_VIEWS.includes(view) || (view === 'analysisFlowDetail' && flowOwnedByUnit);
+  const isAnalysisActive = ANALYSIS_LIKE_VIEWS.includes(view) && !(view === 'analysisFlowDetail' && flowOwnedByUnit);
   const isMasterActive = MASTER_LIKE_VIEWS.includes(view);
   const isApplicationActive = APPLICATION_LIKE_VIEWS.includes(view);
 

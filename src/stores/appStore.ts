@@ -85,12 +85,26 @@ export const useAppStore = create<AppStore>((set) => ({
           : state.analysisService;
       const newPluginCaseId =
         params.pluginCaseId !== undefined ? params.pluginCaseId : state.pluginCaseId;
+      // 解析フロー・号機・申請書の文脈はプロジェクトが変わったら（ハブ移動含む）クリアし、
+      // 別画面への持ち越し（隠れた文脈）を防ぐ。
       const newAnalysisFlowId =
-        params.analysisFlowId !== undefined ? params.analysisFlowId : state.analysisFlowId;
+        params.analysisFlowId !== undefined
+          ? params.analysisFlowId
+          : projectChanged
+          ? null
+          : state.analysisFlowId;
       const newVehicleUnitId =
-        params.vehicleUnitId !== undefined ? params.vehicleUnitId : state.vehicleUnitId;
+        params.vehicleUnitId !== undefined
+          ? params.vehicleUnitId
+          : projectChanged
+          ? null
+          : state.vehicleUnitId;
       const newApplicationId =
-        params.applicationId !== undefined ? params.applicationId : state.applicationId;
+        params.applicationId !== undefined
+          ? params.applicationId
+          : projectChanged
+          ? null
+          : state.applicationId;
       return {
         view,
         projectId: newProjectId,
