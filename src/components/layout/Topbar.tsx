@@ -152,6 +152,15 @@ function findFlowOwner(units: VehicleUnit[], flowId: string): { unit: VehicleUni
   return null;
 }
 
+/** massCaseId(機体諸元DB) を所有する号機フェーズ（PT/FT）を逆引きする */
+function findDbOwner(units: VehicleUnit[], massCaseId: string): { unit: VehicleUnit; phase: 'PT' | 'FT' } | null {
+  for (const u of units) {
+    if (u.pt.massCaseId === massCaseId) return { unit: u, phase: 'PT' };
+    if (u.ft.massCaseId === massCaseId) return { unit: u, phase: 'FT' };
+  }
+  return null;
+}
+
 function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
   const { view, navigate } = a;
 
@@ -313,9 +322,19 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
   };
   if (DB_TAB_LABEL[view]) {
     const dbName = a.massCase?.name ?? '(DB)';
+    // この機体諸元DBを所有する号機フェーズがあれば、号機起点のパンくずにする
+    const owner = a.massCaseId ? findDbOwner(a.units, a.massCaseId) : null;
+    const head: Crumb[] = owner
+      ? [
+          { label: 'プロジェクト', onClick: () => navigate('projects') },
+          { label: a.project.name, onClick: () => navigate('vehicleUnits', { projectId: a.projectId ?? undefined as never }) },
+          { label: `${owner.unit.unitNo}号機`, onClick: () => navigate('vehicleUnitDetail', { projectId: owner.unit.projectId, vehicleUnitId: owner.unit.id }) },
+        ]
+      : base;
+    const dbLabel = owner ? `${PHASE_META[owner.phase].label} 条件設定` : dbName;
     return [
-      ...base,
-      { label: dbName, onClick: view !== 'massModel'
+      ...head,
+      { label: dbLabel, onClick: view !== 'massModel'
         ? () => navigate('massModel', { massCaseId: a.massCaseId ?? undefined as never })
         : undefined },
       ...(view !== 'massModel' ? [{ label: DB_TAB_LABEL[view]! }] : []),
