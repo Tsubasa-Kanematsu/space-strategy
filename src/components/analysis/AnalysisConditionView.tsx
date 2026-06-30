@@ -8,7 +8,7 @@ import { usePropulsionStore } from '../../stores/propulsionStore';
 import { useAppStore } from '../../stores/appStore';
 import type { AnalysisServiceType } from '../../types';
 import { SERVICE_META } from './analysisServiceMeta';
-import { DB_SET_META, SERVICE_DB_SETS, SERVICE_UPSTREAM, setMassModelInitialTab, type DbSet } from './dbSetMeta';
+import { DB_SET_META, ANALYSIS_MASTER_REFS, ANALYSIS_CONDITION_SETS, SERVICE_UPSTREAM, setMassModelInitialTab, type DbSet } from './dbSetMeta';
 
 // ---- Helper: numeric input ----
 const Num: React.FC<{
@@ -623,9 +623,9 @@ export const AnalysisConditionView: React.FC<AnalysisConditionViewProps> = ({
   const meta = serviceType ? SERVICE_META[serviceType] : null;
 
   const dbSetStatus = useDbSetStatus(analysisCase?.massCaseId ?? null);
-  const requiredSets = serviceType ? SERVICE_DB_SETS[serviceType] : [];
-  // 参照しているロケットDB (= MassCase) の名前を表示用に取得
-  const refMassCase = useMassCaseStore((s) => analysisCase?.massCaseId ? s.getCase(analysisCase.massCaseId) : null);
+  // ① マスタデータ（号機共通） ② 条件設定（機体諸元・解析共通）
+  const masterRefs = serviceType ? ANALYSIS_MASTER_REFS[serviceType] : [];
+  const conditionSets = serviceType ? ANALYSIS_CONDITION_SETS[serviceType] : [];
 
   // 上流解析ケース
   const upstreamServiceType = serviceType ? SERVICE_UPSTREAM[serviceType] : undefined;
@@ -684,70 +684,101 @@ export const AnalysisConditionView: React.FC<AnalysisConditionViewProps> = ({
       <div className="row g-3">
         <div className="col-lg-6">
           <div className="card p-3">
-            <h6 className="fw-semibold mb-3">
-              <i className={`bi bi-${meta.icon} me-2 text-primary`} />
-              {meta.label} 解析条件
+            <h6 className="fw-semibold mb-1">
+              <span className="badge bg-primary me-2">③</span>この解析の条件
+              <small className="text-muted ms-2 fw-normal">解析によって変わる入力</small>
             </h6>
+            <p className="text-muted mb-3" style={{ fontSize: '0.78rem' }}>
+              <i className={`bi bi-${meta.icon} me-1`} />{meta.label} に固有の入力項目です。
+            </p>
             {renderForm()}
           </div>
         </div>
 
         <div className="col-lg-6">
-          {/* 参照DBセット */}
+          {/* ① マスタデータ（号機共通） */}
           <div className="card p-3 mb-3">
             <h6 className="fw-semibold mb-1">
-              <i className="bi bi-database me-2 text-primary" />
-              参照ロケットDB データセット
+              <span className="badge bg-info me-2">①</span>マスタデータ
+              <small className="text-muted ms-2 fw-normal">号機によらず共通</small>
             </h6>
-            {refMassCase && (
-              <div className="d-flex align-items-center gap-2 mb-2 px-2 py-1 rounded" style={{ background: '#eaf2ff', fontSize: '0.85rem' }}>
-                <i className="bi bi-database-fill text-primary" />
-                <span className="text-muted">参照中:</span>
-                <strong className="font-monospace">{refMassCase.name}</strong>
-              </div>
-            )}
             <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>
-              この解析が参照するデータセット。クリックで該当タブへ移動できます。
+              号機横断で共通のマスタ。編集は「マスタデータ」画面で行います。
             </p>
-            <div className="d-flex flex-column gap-2">
-              {requiredSets.map((set) => {
-                const setMeta = DB_SET_META[set];
-                const hasData = dbSetStatus[set] ?? false;
-                return (
+            {masterRefs.length === 0 ? (
+              <div className="text-muted" style={{ fontSize: '0.83rem' }}>この解析が参照するマスタはありません。</div>
+            ) : (
+              <div className="d-flex flex-column gap-2">
+                {masterRefs.map((ref) => (
                   <button
-                    key={set}
+                    key={ref.key}
                     className="btn btn-sm d-flex align-items-center gap-2 text-start"
                     style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 6 }}
-                    onClick={() => {
-                      // 統合済タブ (massModel) のときは内部 dataView を sessionStorage で伝える
-                      if (setMeta.view === 'massModel' && setMeta.massModelTab) {
-                        setMassModelInitialTab(setMeta.massModelTab);
-                      }
-                      navigate(setMeta.view, {
-                        projectId: analysisCase.projectId,
-                        massCaseId: analysisCase.massCaseId,
-                      });
-                    }}
-                    title={`ロケットDB の「${setMeta.label}」タブへ移動`}
+                    onClick={() => navigate(ref.view)}
+                    title={`${ref.label}（マスタデータ）を開く`}
                   >
-                    <span className={`badge ${setMeta.badgeClass}`} style={{ minWidth: 28 }}>
-                      <i className={`bi bi-${setMeta.icon}`} />
+                    <span className="badge bg-info-subtle text-info" style={{ minWidth: 28 }}>
+                      <i className={`bi bi-${ref.icon}`} />
                     </span>
-                    <span className="flex-grow-1" style={{ fontSize: '0.83rem' }}>{setMeta.label}</span>
-                    {hasData ? (
-                      <span className="badge bg-success-subtle text-success" style={{ fontSize: '0.7rem' }}>
-                        <i className="bi bi-check-circle me-1" />データあり
-                      </span>
-                    ) : (
-                      <span className="badge bg-warning-subtle text-warning" style={{ fontSize: '0.7rem' }}>
-                        <i className="bi bi-exclamation-circle me-1" />未入力
-                      </span>
-                    )}
+                    <span className="flex-grow-1" style={{ fontSize: '0.83rem' }}>{ref.label}</span>
                     <i className="bi bi-box-arrow-up-right text-muted" style={{ fontSize: '0.72rem' }} />
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ② 条件設定（機体諸元・解析共通） */}
+          <div className="card p-3 mb-3">
+            <h6 className="fw-semibold mb-1">
+              <span className="badge bg-primary me-2">②</span>条件設定（機体諸元）
+              <small className="text-muted ms-2 fw-normal">解析の種類によらず共通</small>
+            </h6>
+            <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>
+              このフェーズの条件設定。クリックで該当データへ移動します。
+            </p>
+            {conditionSets.length === 0 ? (
+              <div className="text-muted" style={{ fontSize: '0.83rem' }}>この解析が参照する機体諸元はありません。</div>
+            ) : (
+              <div className="d-flex flex-column gap-2">
+                {conditionSets.map((set) => {
+                  const setMeta = DB_SET_META[set];
+                  const hasData = dbSetStatus[set] ?? false;
+                  return (
+                    <button
+                      key={set}
+                      className="btn btn-sm d-flex align-items-center gap-2 text-start"
+                      style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 6 }}
+                      onClick={() => {
+                        if (setMeta.view === 'massModel' && setMeta.massModelTab) {
+                          setMassModelInitialTab(setMeta.massModelTab);
+                        }
+                        navigate(setMeta.view, {
+                          projectId: analysisCase.projectId,
+                          massCaseId: analysisCase.massCaseId,
+                        });
+                      }}
+                      title={`条件設定（機体諸元）の「${setMeta.label}」へ移動`}
+                    >
+                      <span className={`badge ${setMeta.badgeClass}`} style={{ minWidth: 28 }}>
+                        <i className={`bi bi-${setMeta.icon}`} />
+                      </span>
+                      <span className="flex-grow-1" style={{ fontSize: '0.83rem' }}>{setMeta.label}</span>
+                      {hasData ? (
+                        <span className="badge bg-success-subtle text-success" style={{ fontSize: '0.7rem' }}>
+                          <i className="bi bi-check-circle me-1" />データあり
+                        </span>
+                      ) : (
+                        <span className="badge bg-warning-subtle text-warning" style={{ fontSize: '0.7rem' }}>
+                          <i className="bi bi-exclamation-circle me-1" />未入力
+                        </span>
+                      )}
+                      <i className="bi bi-box-arrow-up-right text-muted" style={{ fontSize: '0.72rem' }} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 上流解析ケース */}

@@ -58,6 +58,64 @@ export function consumeMassModelInitialTab(): 'mass' | 'cginertia' | 'material' 
   } catch { return null; }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// 解析インプットの3分類（運用版の再設計）
+//   ① マスタデータ（号機によらず共通）          → ANALYSIS_MASTER_REFS（マスタ画面へ）
+//   ② 条件設定（解析の種類によらず共通＝機体諸元）→ ANALYSIS_CONDITION_SETS（このフェーズの条件設定へ）
+//   ③ 解析固有（解析によって変わる）             → 各 *Form（解析条件画面の左側）
+// ─────────────────────────────────────────────────────────────────
+
+export interface MasterRef {
+  key: string;
+  label: string;
+  icon: string;
+  view: AppView;
+}
+
+const MASTER: Record<string, MasterRef> = {
+  shape:      { key: 'shape',      label: '機体形状データ',     icon: 'rulers',               view: 'shapeMaster' },
+  aero:       { key: 'aero',       label: '空力係数データ',     icon: 'wind',                 view: 'aeroCoeffMaster' },
+  propulsion: { key: 'propulsion', label: '推進系データ',       icon: 'fire',                 view: 'propulsionMaster' },
+  wind:       { key: 'wind',       label: '風データ',           icon: 'tornado',              view: 'windMaster' },
+  debris:     { key: 'debris',     label: '代表破片データ',     icon: 'hexagon',              view: 'debrisMaster' },
+  failure:    { key: 'failure',    label: '故障率データ',       icon: 'exclamation-triangle', view: 'failureRateMaster' },
+  vAntenna:   { key: 'vAntenna',   label: '機体アンテナデータ', icon: 'broadcast',            view: 'vehicleAntennaData' },
+  gAntenna:   { key: 'gAntenna',   label: '地上局アンテナデータ', icon: 'broadcast-pin',      view: 'groundAntennaData' },
+};
+
+/** ① マスタデータ（号機共通）: 各解析が参照するマスタ */
+export const ANALYSIS_MASTER_REFS: Record<AnalysisServiceType, MasterRef[]> = {
+  aeroAnalysis:     [MASTER.shape, MASTER.aero],
+  flightAnalysis:   [MASTER.shape, MASTER.aero, MASTER.propulsion, MASTER.wind],
+  dispersedFlight:  [MASTER.wind],
+  loadAnalysis:     [MASTER.aero, MASTER.wind],
+  shipHazard:       [MASTER.debris],
+  piEc:             [MASTER.debris, MASTER.failure],
+  debrisImpact:     [MASTER.debris],
+  rfLink:           [MASTER.vAntenna, MASTER.gAntenna],
+  ablation:         [MASTER.debris],
+  orbitLifetime:    [],
+  pathRotationRate: [],
+  gnssSatellite:    [MASTER.vAntenna],
+};
+
+/** ② 条件設定（機体諸元・解析共通）: 各解析が参照する機体諸元データ（mass/cg/inertia/material/errorSource のみ） */
+export const ANALYSIS_CONDITION_SETS: Record<AnalysisServiceType, DbSet[]> = {
+  aeroAnalysis:     [],
+  flightAnalysis:   ['mass', 'cg', 'inertia'],
+  dispersedFlight:  ['errorSource'],
+  loadAnalysis:     ['mass', 'cg', 'inertia', 'material'],
+  shipHazard:       ['mass', 'errorSource'],
+  piEc:             ['mass', 'cg', 'inertia', 'errorSource'],
+  debrisImpact:     ['mass', 'errorSource'],
+  rfLink:           ['mass', 'cg', 'inertia', 'errorSource'],
+  ablation:         ['mass', 'material'],
+  orbitLifetime:    ['mass'],
+  pathRotationRate: ['mass', 'cg', 'inertia'],
+  gnssSatellite:    ['mass', 'cg', 'inertia', 'errorSource'],
+};
+
+/** （旧）DBセット参照。後方互換のため残置。新UIは上の3分類を使う。 */
 export const SERVICE_DB_SETS: Record<AnalysisServiceType, DbSet[]> = {
   aeroAnalysis:     ['shape'],
   flightAnalysis:   ['mass', 'cg', 'inertia', 'shape', 'propulsion'],
