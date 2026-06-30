@@ -112,21 +112,7 @@ export const VehicleUnitDetail: React.FC = () => {
 
   return (
     <div>
-      <div className="d-flex align-items-center gap-2 mb-1">
-        <button
-          className="btn btn-link btn-sm p-0 text-muted"
-          style={{ textDecoration: 'none' }}
-          onClick={() => navigate('vehicleUnits', { projectId })}
-        >
-          <i className="bi bi-arrow-left me-1" />{project?.name ?? 'プロジェクト'} / 号機一覧
-        </button>
-      </div>
-      <div className="mb-3">
-        <h1 className="page-title mb-0">{unit.unitNo}号機 — {unit.missionName}</h1>
-        <small className="text-muted">
-          打上予定日: {unit.launchDate || '未定'} ・ ステータス: <span className="fw-semibold">{unit.status}</span>
-        </small>
-      </div>
+      {/* 号機の同一性・セクションタブは上部の号機ワークバー(PhaseWorkBar)が提供する */}
 
       {/* 2フェーズのワークスペース */}
       <div className="row g-3 mb-3">
