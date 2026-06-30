@@ -5,7 +5,7 @@ import { SERVICE_META } from '../analysis/analysisServiceMeta';
 import { useFlags } from '../../stores/featureFlagsStore';
 
 const DB_TABS: { view: AppView; icon: string; label: string; matchViews?: AppView[] }[] = [
-  { view: 'massModel',      icon: 'diagram-2',          label: 'コンポーネント構成' },
+  { view: 'massModel',      icon: 'diagram-2',          label: '質量' },
   { view: 'parameters',     icon: 'sliders',             label: 'パラメータ' },
   { view: 'rocketShapeData',   icon: 'rulers-combined',  label: '空力形状' },
   { view: 'propulsionData',    icon: 'fire',             label: '推進系' },

@@ -42,7 +42,7 @@ export const FEATURE_FLAGS = {
     parameters: false,      // パラメータ（DBからは削除）
     rocketShapeData: false, // 空力形状（DBからは削除。形状はマスタで管理）
     propulsionData: false,  // 推進系（DBからは削除。推進系はマスタで管理）
-    debrisShapeData: true,  // 破片形状
+    debrisShapeData: false, // 破片形状（DBからは削除）
     errorSourceData: true,  // 誤差源
   },
 

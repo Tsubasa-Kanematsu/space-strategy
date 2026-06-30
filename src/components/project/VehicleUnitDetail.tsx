@@ -6,7 +6,6 @@ import { useApplicationStore } from '../../stores/applicationStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { isPtComplete, PHASE_META, PHASE_STATUSES } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
-import { BUILTIN_FLOW_TEMPLATES, PT_TEMPLATE_KEY, FT_TEMPLATE_KEY } from '../analysis/flow/flowTemplates';
 import type { AnalysisPhase, PhaseState, PhaseStatus } from '../../types';
 
 const STATUS_BADGE: Record<PhaseStatus, string> = {
@@ -24,7 +23,7 @@ export const VehicleUnitDetail: React.FC = () => {
   const updatePhase = useVehicleUnitStore((s) => s.updatePhase);
   const getByUnit = useApplicationStore((s) => s.getByUnit);
   const upsertForUnit = useApplicationStore((s) => s.upsertForUnit);
-  const addFlow = useAnalysisFlowStore((s) => s.addFlow);
+  const flows = useAnalysisFlowStore((s) => s.flows);
 
   const unit = vehicleUnitId ? getUnit(vehicleUnitId) : undefined;
 
@@ -48,54 +47,32 @@ export const VehicleUnitDetail: React.FC = () => {
 
   const phaseState = (phase: AnalysisPhase): PhaseState => (phase === 'PT' ? unit.pt : unit.ft);
 
-  // このフェーズの「解析設定」を開く＝解析フロー（パイプライン）を開く。
-  // 無ければ対応テンプレートを初期適用して作成。条件設定(機体諸元)へは上部の作業バーで切替。
-  const openFlow = (phase: AnalysisPhase) => {
-    const ps = phaseState(phase);
-    let fId = ps.flowId;
-    if (!fId) {
-      const tplKey = phase === 'PT' ? PT_TEMPLATE_KEY : FT_TEMPLATE_KEY;
-      const tpl = BUILTIN_FLOW_TEMPLATES.find((t) => t.key === tplKey);
-      const created = addFlow({
-        projectId,
-        name: `${unit.unitNo}号機 ${PHASE_META[phase].label} パイプライン`,
-        steps: tpl ? tpl.build() : [],
-      });
-      fId = created.id;
-      updatePhase(unit.id, phase, { flowId: fId });
-    }
-    navigate('analysisFlowDetail', { analysisFlowId: fId, projectId });
-  };
-
   const generateApplication = () => {
     const data = buildApplicationData({ unit, projectName: project?.name ?? '' });
     const created = upsertForUnit(data);
     navigate('applicationDetail', { applicationId: created.id });
   };
 
-  // フェーズパネル（コンポーネント化せず関数で返す。再マウント回避）
+  const setBadge = (ok: boolean) =>
+    ok
+      ? <span className="badge bg-success">設定済み</span>
+      : <span className="badge bg-light text-muted">未設定</span>;
+
+  // フェーズの状態詳細パネル（入口は上部の号機ワークバーのタブ）
   const renderPhase = (phase: AnalysisPhase) => {
     const ps = phaseState(phase);
     const meta = PHASE_META[phase];
+    const flow = ps.flowId ? flows.find((f) => f.id === ps.flowId) : null;
+    const totalSteps = flow ? flow.steps.length : 0;
+    const doneSteps = flow ? flow.steps.filter((s) => s.status === 'done').length : 0;
     return (
       <div className="card h-100">
         <div className="card-header d-flex justify-content-between align-items-center">
           <span className="fw-semibold"><i className={`bi bi-${meta.icon} me-1`} />{meta.label}</span>
           <span className={`badge ${STATUS_BADGE[ps.status]}`}>{ps.status}</span>
         </div>
-        <div className="card-body d-flex flex-column">
+        <div className="card-body">
           <div className="mb-3">
-            <button
-              className="btn btn-outline-primary btn-sm w-100 text-start d-flex justify-content-between align-items-center"
-              onClick={() => openFlow(phase)}
-            >
-              <span><i className="bi bi-sliders me-1" />解析設定を開く</span>
-              <i className="bi bi-arrow-right" />
-            </button>
-            <small className="text-muted d-block mt-1">条件設定（機体諸元）と解析フローを設定します。</small>
-          </div>
-
-          <div className="mt-auto">
             <label className="form-label small fw-medium mb-1">ステータス</label>
             <select
               className="form-select form-select-sm"
@@ -104,6 +81,25 @@ export const VehicleUnitDetail: React.FC = () => {
             >
               {PHASE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
             </select>
+          </div>
+          <table className="table table-sm align-middle mb-0">
+            <tbody>
+              <tr>
+                <td className="text-muted" style={{ width: 110 }}><i className="bi bi-sliders me-1" />条件設定</td>
+                <td>{setBadge(!!ps.massCaseId)}<small className="text-muted ms-2">機体諸元</small></td>
+              </tr>
+              <tr>
+                <td className="text-muted"><i className="bi bi-diagram-3 me-1" />解析フロー</td>
+                <td>
+                  {ps.flowId
+                    ? <>{setBadge(true)}<small className="text-muted ms-2">{doneSteps}/{totalSteps} ステップ完了</small></>
+                    : setBadge(false)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="text-muted small mt-2">
+            <i className="bi bi-info-circle me-1" />上部の「{meta.label}」タブから条件設定・解析フローを開けます。
           </div>
         </div>
       </div>

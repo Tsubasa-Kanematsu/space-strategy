@@ -2254,11 +2254,7 @@ export const MassModel: React.FC = () => {
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h1 className="page-title">
-          <i className="bi bi-diagram-2 me-2 text-primary" />
-          コンポーネント構成 — {massCase.name}
-        </h1>
+      <div className="d-flex justify-content-end align-items-center mb-2">
         <div className="action-toolbar">
           {/* Undo/Redo (componentSlice の add/update/delete のみ。⌘Z / ⌘⇧Z 対応) */}
           <div className="btn-group btn-group-sm" role="group">

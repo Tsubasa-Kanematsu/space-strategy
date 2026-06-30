@@ -140,9 +140,6 @@ export const PhaseWorkBar: React.FC = () => {
               <i className="bi bi-diagram-3 me-1" />解析フロー
             </button>
           </div>
-          <span className="text-muted ms-3" style={{ fontSize: '0.78rem' }}>
-            <i className={`bi bi-${PHASE_META[phase].icon} me-1`} />{PHASE_META[phase].label}
-          </span>
         </div>
       )}
     </div>
