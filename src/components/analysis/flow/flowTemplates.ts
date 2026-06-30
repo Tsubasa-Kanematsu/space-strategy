@@ -6,6 +6,12 @@ import { SERVICE_META, ALL_SERVICES } from '../analysisServiceMeta';
  * 解析フロー テンプレート定義。
  * 既存フローに上書き適用される (flow.steps を置き換える)。
  *
+ * 運用版では PT解析（計画時）／FT解析（飛行時）の2テンプレートを用意する。
+ * 両者とも運用向けの解析（飛行・分散・荷重・船舶・Pi/Ec・落下域・RF・溶融・軌道寿命・
+ * 経路回転率・測位衛星）を一通り回すパイプラインで、末尾の判定だけが異なる:
+ *   - PT解析: 申請基準達成判定 → 内閣府申請に使用
+ *   - FT解析: PT想定への包含判定 → 打ち上げ可否
+ *
  * 設計方針:
  * - 各ステップは "解析サービスへのリンクなし" の shell として作成 (analysisCaseId 等は空)。
  *   ユーザーが個別に「解析:」 ドロップダウンで具体的なサービスを選ぶ。
@@ -27,122 +33,65 @@ export interface FlowTemplate {
   build: () => AnalysisFlowStep[];
 }
 
+// ─── PT解析 / FT解析 共通の運用解析パイプライン ──────────────────────
+interface PhaseFlowOpts {
+  decisionLabel: string;
+  decisionCondition: string;
+  endLabel: string;
+}
+
 /**
- * テンプレートの分類方針 (ロケット開発工程 × 規制整合)
- *
- *  A) 車両設計反復 (Phase A-B: Vehicle Design Iteration)
- *     ミッション要求 → サイジング → 空力 → 飛行 → 判定 → ループ
- *     設計収束させる「外側ループ」
- *
- *  B) 構造・熱 健全性評価 (Phase C: Structural & Thermal)
- *     飛行荷重環境 → 荷重・熱解析 並列 → 健全性判定
- *     軌道・荷重環境が決まった後で部位設計に使う
- *
- *  C) FAA 14 CFR Part 450 飛行安全解析 (Flight Safety Analysis)
- *     射場ライセンス申請に必要な FSA。 §450.117/§450.119/§450.131 等に対応:
- *       - §450.117  Trajectory analysis (公称・分散経路)
- *       - §450.119  Flight hazard area analysis (船舶/航空機/陸域)
- *       - §450.131  Debris risk analysis (Ec)
- *       - §450.133  Population exposure (Pi/Ec)
- *
- *  D) 軌道投入・通信運用 (Phase C-D: On-orbit & Comms)
- *     軌道寿命・経路回転率・RFリンク・GNSS など 軌道上運用の成立性確認
+ * 運用向け11解析を一通り回すパイプラインを生成する。
+ * 飛行解析 → 分散飛行経路解析 → (荷重 / 溶融) → (船舶危険 / 落下域) → Pi/Ec
+ *   → (RFリンク / 測位衛星) → (軌道寿命 / 経路回転率) → 判定 → 確定
  */
-
-// ─── A) 車両設計反復フロー (Conceptual / Preliminary Design) ────────
-
-function templateVehicleSizingLoop(): AnalysisFlowStep[] {
-  const id1 = uuidv4(), id2 = uuidv4(), id3 = uuidv4(), idJ = uuidv4(), idEnd = uuidv4();
+function buildPhaseFlow(opts: PhaseFlowOpts): AnalysisFlowStep[] {
+  const f = uuidv4(), d = uuidv4(), ld = uuidv4(), ab = uuidv4(), sh = uuidv4(),
+    db = uuidv4(), pec = uuidv4(), rf = uuidv4(), gnss = uuidv4(),
+    ol = uuidv4(), prr = uuidv4(), J = uuidv4(), end = uuidv4();
   const base = { status: 'pending' as const, notes: '', dataBindings: [] };
   return [
-    { id: id1,  order: 0, label: 'サイジング',     kind: 'normal',  position: { x: COL_CENTER, y: 0 },           nextStepIds: [id2], ...base },
-    { id: id2,  order: 1, label: '空力解析',       kind: 'normal',  position: { x: COL_CENTER, y: ROW_H },        nextStepIds: [id3], ...base },
-    { id: id3,  order: 2, label: '飛行解析',       kind: 'normal',  position: { x: COL_CENTER, y: ROW_H * 2 },    nextStepIds: [idJ], ...base },
-    { id: idJ,  order: 3, label: '性能要求達成判定', kind: 'decision', position: { x: COL_CENTER, y: ROW_H * 3 },  nextStepIds: [idEnd], loopBackToStepId: id1, loopCondition: 'ΔV要求達成 かつ 質量マージン > 10%', ...base },
-    { id: idEnd, order: 4, label: 'ベースライン確定', kind: 'normal',  position: { x: COL_CENTER, y: ROW_H * 4 }, nextStepIds: [], ...base },
+    { id: f,    order: 0,  label: '飛行解析',         kind: 'normal',   position: { x: COL_CENTER, y: 0 },         nextStepIds: [d], ...base },
+    { id: d,    order: 1,  label: '分散飛行経路解析',  kind: 'normal',   position: { x: COL_CENTER, y: ROW_H },     nextStepIds: [ld, ab], ...base },
+    { id: ld,   order: 2,  label: '荷重解析',         kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 2 }, nextStepIds: [sh], ...base },
+    { id: ab,   order: 3,  label: '溶融解析',         kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 2 }, nextStepIds: [db], ...base },
+    { id: sh,   order: 4,  label: '海上船舶危険解析',  kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 3 }, nextStepIds: [pec], ...base },
+    { id: db,   order: 5,  label: '投棄物落下域解析',  kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 3 }, nextStepIds: [pec], ...base },
+    { id: pec,  order: 6,  label: 'Pi/Ec解析',        kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 4 }, nextStepIds: [rf, gnss], ...base },
+    { id: rf,   order: 7,  label: 'RFリンク解析',      kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 5 }, nextStepIds: [ol], ...base },
+    { id: gnss, order: 8,  label: '測位衛星通信解析',  kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 5 }, nextStepIds: [prr], ...base },
+    { id: ol,   order: 9,  label: '軌道上寿命解析',    kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 6 }, nextStepIds: [J], ...base },
+    { id: prr,  order: 10, label: '経路回転率解析',    kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 6 }, nextStepIds: [J], ...base },
+    { id: J,    order: 11, label: opts.decisionLabel, kind: 'decision', position: { x: COL_CENTER, y: ROW_H * 7 }, nextStepIds: [end], loopBackToStepId: f, loopCondition: opts.decisionCondition, ...base },
+    { id: end,  order: 12, label: opts.endLabel,      kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 8 }, nextStepIds: [], ...base },
   ];
 }
 
-// ─── B) 構造・熱 健全性評価フロー ──────────────────────────────────
-
-function templateStructuralThermal(): AnalysisFlowStep[] {
-  const id1 = uuidv4(), id2a = uuidv4(), id2b = uuidv4(), idJ = uuidv4(), idEnd = uuidv4();
-  const base = { status: 'pending' as const, notes: '', dataBindings: [] };
-  return [
-    { id: id1,   order: 0, label: '飛行解析 (荷重環境)', kind: 'normal',   position: { x: COL_CENTER, y: 0 },        nextStepIds: [id2a, id2b], ...base },
-    { id: id2a,  order: 1, label: '荷重解析',           kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H },     nextStepIds: [idJ], ...base },
-    { id: id2b,  order: 2, label: '溶融解析 (熱)',      kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H },     nextStepIds: [idJ], ...base },
-    { id: idJ,   order: 3, label: '構造・熱 健全性判定', kind: 'decision', position: { x: COL_CENTER, y: ROW_H * 2 }, nextStepIds: [idEnd], loopBackToStepId: id1, loopCondition: '応力 ≤ 許容 かつ 温度 ≤ 許容', ...base },
-    { id: idEnd, order: 4, label: '設計確定',           kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 3 }, nextStepIds: [], ...base },
-  ];
-}
-
-// ─── C) FAA 14 CFR Part 450 飛行安全解析フロー ────────────────────
-
-function templateFaa450FlightSafety(): AnalysisFlowStep[] {
-  const id1 = uuidv4(), id2 = uuidv4();
-  const id3a = uuidv4(), id3b = uuidv4();
-  const id4 = uuidv4(), idJ = uuidv4(), idEnd = uuidv4();
-  const base = { status: 'pending' as const, notes: '', dataBindings: [] };
-  return [
-    // §450.117 Trajectory analysis: 公称
-    { id: id1,   order: 0, label: '飛行解析 (公称経路)',           kind: 'normal',   position: { x: COL_CENTER, y: 0 },         nextStepIds: [id2], ...base },
-    // §450.117 Trajectory analysis: 分散
-    { id: id2,   order: 1, label: '分散飛行経路解析 (Monte Carlo)', kind: 'normal',   position: { x: COL_CENTER, y: ROW_H },     nextStepIds: [id3a, id3b], ...base },
-    // §450.119 Flight hazard area: 海上
-    { id: id3a,  order: 2, label: '海上船舶危険解析',               kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 2 }, nextStepIds: [id4], ...base },
-    // §450.131 Debris risk: 落下域
-    { id: id3b,  order: 3, label: '投棄物落下域解析',               kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 2 }, nextStepIds: [id4], ...base },
-    // §450.133 Population exposure: Pi/Ec
-    { id: id4,   order: 4, label: 'Pi/Ec解析 (集団リスク)',         kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 3 }, nextStepIds: [idJ], ...base },
-    { id: idJ,   order: 5, label: 'FAA Part 450 基準達成判定',     kind: 'decision', position: { x: COL_CENTER, y: ROW_H * 4 }, nextStepIds: [idEnd], loopBackToStepId: id1, loopCondition: 'Ec ≤ 1×10⁻⁴ かつ 個人リスク ≤ 1×10⁻⁶ (Part 450 §450.101)', ...base },
-    { id: idEnd, order: 6, label: 'FSA 報告書化',                  kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 5 }, nextStepIds: [], ...base },
-  ];
-}
-
-// ─── D) 軌道投入・通信運用解析フロー ─────────────────────────────
-
-function templateOrbitalOps(): AnalysisFlowStep[] {
-  const id1 = uuidv4(), id2 = uuidv4(), id3a = uuidv4(), id3b = uuidv4(), idJ = uuidv4(), idEnd = uuidv4();
-  const base = { status: 'pending' as const, notes: '', dataBindings: [] };
-  return [
-    { id: id1,   order: 0, label: '軌道上寿命解析',     kind: 'normal',   position: { x: COL_CENTER, y: 0 },         nextStepIds: [id2], ...base },
-    { id: id2,   order: 1, label: '経路回転率解析',     kind: 'normal',   position: { x: COL_CENTER, y: ROW_H },     nextStepIds: [id3a, id3b], ...base },
-    { id: id3a,  order: 2, label: 'RFリンク解析',       kind: 'normal',   position: { x: COL_LEFT,   y: ROW_H * 2 }, nextStepIds: [idJ], ...base },
-    { id: id3b,  order: 3, label: '測位衛星通信解析',   kind: 'normal',   position: { x: COL_RIGHT,  y: ROW_H * 2 }, nextStepIds: [idJ], ...base },
-    { id: idJ,   order: 4, label: '軌道運用成立性判定', kind: 'decision', position: { x: COL_CENTER, y: ROW_H * 3 }, nextStepIds: [idEnd], loopBackToStepId: id1, loopCondition: '寿命要求達成 かつ リンクマージン ≥ 3 dB', ...base },
-    { id: idEnd, order: 5, label: 'ミッション計画確定', kind: 'normal',   position: { x: COL_CENTER, y: ROW_H * 4 }, nextStepIds: [], ...base },
-  ];
-}
+export const PT_TEMPLATE_KEY = 'pt-analysis';
+export const FT_TEMPLATE_KEY = 'ft-analysis';
 
 export const BUILTIN_FLOW_TEMPLATES: FlowTemplate[] = [
   {
-    key: 'vehicle-sizing-loop',
-    name: '機体サイジング・性能収束',
-    description: '概念〜基本設計 (Phase A-B)。サイジング ↔ 空力 ↔ 飛行 を反復し、性能要求に収束させる外側ループ',
-    icon: 'arrow-repeat',
-    build: templateVehicleSizingLoop,
+    key: PT_TEMPLATE_KEY,
+    name: 'PT解析',
+    description: '計画時解析。想定（包絡）条件で運用解析を一通り実施し、申請基準の達成を判定する。内閣府への打ち上げ許可申請に使用。',
+    icon: 'clipboard-data',
+    build: () => buildPhaseFlow({
+      decisionLabel: '申請基準達成判定',
+      decisionCondition: 'Ec ≤ 1×10⁻⁴ 等の申請基準を満たす',
+      endLabel: 'PT解析 確定（申請用）',
+    }),
   },
   {
-    key: 'structural-thermal',
-    name: '構造・熱 健全性検証',
-    description: '詳細設計 (Phase C)。飛行解析で得た荷重環境から 荷重・熱解析 を並列実行し、応力/温度の許容判定を行う',
-    icon: 'speedometer2',
-    build: templateStructuralThermal,
-  },
-  {
-    key: 'faa-part450-fsa',
-    name: '飛行安全解析 (FAA Part 450)',
-    description: '商用打上げライセンス必須の Flight Safety Analysis。公称・分散経路 → 危険域 (海上/落下) → Pi/Ec まで §450.117/119/131/133 に整合',
+    key: FT_TEMPLATE_KEY,
+    name: 'FT解析',
+    description: '飛行時解析。打上直前の実条件で同じ運用解析を実施し、結果が PT解析の想定範囲に包含されることを確認する。',
     icon: 'shield-check',
-    build: templateFaa450FlightSafety,
-  },
-  {
-    key: 'orbital-ops',
-    name: '軌道投入・通信運用',
-    description: '投入後の運用検証 (Phase C-D)。軌道寿命 → 姿勢 → RFリンク / 測位衛星通信 を統合判定',
-    icon: 'broadcast',
-    build: templateOrbitalOps,
+    build: () => buildPhaseFlow({
+      decisionLabel: 'PT想定への包含判定',
+      decisionCondition: 'FT結果が PT解析の想定範囲に包含される',
+      endLabel: 'FT解析 確定（打上可否）',
+    }),
   },
 ];
 
@@ -211,9 +160,8 @@ export type TemplateSeed =
 
 /**
  * ステップラベルから「このスロットは何の解析か」 を判定する。
- * テンプレ内の label = 「荷重解析」 / 「サイジング」 / 「飛行解析 (公称経路)」 等を
- * SERVICE_META や 'サイジング' などのキーワード照合で解決する。
- * decision ステップや 結果統合 / ベースライン確定 等は null を返す (ケース作成しない)。
+ * テンプレ内の label = 「荷重解析」 / 「飛行解析」 等を SERVICE_META 照合で解決する。
+ * decision ステップや 確定 等は null を返す (ケース作成しない)。
  */
 export function resolveSeedFromLabel(label: string): TemplateSeed | null {
   if (!label) return null;

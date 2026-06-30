@@ -7,6 +7,7 @@ import { useMassCaseStore } from '../../stores/massCaseStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { isPtComplete, PHASE_META, PHASE_STATUSES } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
+import { BUILTIN_FLOW_TEMPLATES, PT_TEMPLATE_KEY, FT_TEMPLATE_KEY } from '../analysis/flow/flowTemplates';
 import type { AnalysisPhase, PhaseState, PhaseStatus } from '../../types';
 
 const STATUS_BADGE: Record<PhaseStatus, string> = {
@@ -66,15 +67,18 @@ export const VehicleUnitDetail: React.FC = () => {
     navigate('massModel', { projectId, massCaseId: mcId });
   };
 
-  // このフェーズ専用の解析パイプライン（解析フロー）を開く（無ければ作成）
+  // このフェーズ専用の解析パイプライン（解析フロー）を開く（無ければ作成）。
+  // 作成時はフェーズに対応するテンプレート（PT解析 / FT解析）を初期適用する。
   const openFlow = (phase: AnalysisPhase) => {
     const ps = phaseState(phase);
     let fId = ps.flowId;
     if (!fId) {
+      const tplKey = phase === 'PT' ? PT_TEMPLATE_KEY : FT_TEMPLATE_KEY;
+      const tpl = BUILTIN_FLOW_TEMPLATES.find((t) => t.key === tplKey);
       const created = addFlow({
         projectId,
         name: `${unit.unitNo}号機 ${PHASE_META[phase].label} パイプライン`,
-        steps: [],
+        steps: tpl ? tpl.build() : [],
       });
       fId = created.id;
       updatePhase(unit.id, phase, { flowId: fId });
