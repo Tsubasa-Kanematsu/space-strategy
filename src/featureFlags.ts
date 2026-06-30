@@ -38,10 +38,10 @@ export const FEATURE_FLAGS = {
 
   // ── データベース（号機に紐づくデータ） ────────────────────────────────────────
   db: {
-    massModel: true,        // コンポーネント構成（質量/重心/慣性/材質/搭載位置）
-    parameters: true,       // パラメータ
-    rocketShapeData: true,  // 空力形状
-    propulsionData: true,   // 推進系
+    massModel: true,        // コンポーネント構成（質量/重心/慣性/材質）
+    parameters: false,      // パラメータ（DBからは削除）
+    rocketShapeData: false, // 空力形状（DBからは削除。形状はマスタで管理）
+    propulsionData: false,  // 推進系（DBからは削除。推進系はマスタで管理）
     debrisShapeData: true,  // 破片形状
     errorSourceData: true,  // 誤差源
   },

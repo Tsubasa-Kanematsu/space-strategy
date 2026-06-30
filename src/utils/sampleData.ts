@@ -1073,6 +1073,25 @@ export function loadSampleData(): void {
   });
 
   // ════════════════════════════════════════
+  // マスタデータ — 推進系
+  // ════════════════════════════════════════
+  masterStore.addPropulsion({
+    name: 'RP-9 (1段メイン)', stage: '1段', propellant: 'LOX/RP-1', cycle: 'ガス発生器',
+    thrustVacKN: 1120, thrustSlKN: 980, ispVacS: 311, burnTimeS: 155, throttle: '60–100%',
+    memo: '1段メインエンジン。',
+  });
+  masterStore.addPropulsion({
+    name: 'RP-3V (2段)', stage: '2段', propellant: 'LOX/RP-1', cycle: 'ガス発生器',
+    thrustVacKN: 180, thrustSlKN: null, ispVacS: 342, burnTimeS: 210, throttle: '固定',
+    memo: '2段エンジン。真空仕様。',
+  });
+  masterStore.addPropulsion({
+    name: 'RCS-Thruster', stage: '姿勢制御', propellant: 'N2H4 (単推進)', cycle: '触媒分解',
+    thrustVacKN: 0.22, thrustSlKN: null, ispVacS: 224, burnTimeS: 0, throttle: 'パルス',
+    memo: '姿勢制御スラスタ。',
+  });
+
+  // ════════════════════════════════════════
   // 号機（運用フェーズ） — LV-Alpha の各フライト
   // ════════════════════════════════════════
   // 1号機: PT解析 完了 → 申請書を自動生成 → 内閣府へ提出済み。FT解析は実施中

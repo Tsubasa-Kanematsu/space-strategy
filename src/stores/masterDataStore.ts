@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { cloudStorage } from '../utils/cloudStorage';
 import { v4 as uuidv4 } from 'uuid';
-import type { AntennaData, ComponentCategoryPreset } from '../types';
+import type { AntennaData, ComponentCategoryPreset, PropulsionMaster } from '../types';
 
 interface MasterDataStore {
   antennas: AntennaData[];
@@ -10,6 +10,11 @@ interface MasterDataStore {
   updateAntenna: (id: string, data: Partial<Omit<AntennaData, 'id' | 'createdAt'>>) => void;
   deleteAntenna: (id: string) => void;
   getAntenna: (id: string) => AntennaData | undefined;
+
+  propulsions: PropulsionMaster[];
+  addPropulsion: (data: Omit<PropulsionMaster, 'id' | 'createdAt' | 'updatedAt'>) => PropulsionMaster;
+  updatePropulsion: (id: string, data: Partial<Omit<PropulsionMaster, 'id' | 'createdAt'>>) => void;
+  deletePropulsion: (id: string) => void;
 
   componentCategoryPresets: ComponentCategoryPreset[];
   addComponentCategoryPreset: (data: Omit<ComponentCategoryPreset, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => ComponentCategoryPreset;
@@ -49,6 +54,22 @@ export const useMasterDataStore = create<MasterDataStore>()(
         set((s) => ({ antennas: s.antennas.filter((a) => a.id !== id) })),
 
       getAntenna: (id) => get().antennas.find((a) => a.id === id),
+
+      propulsions: [],
+
+      addPropulsion: (data) => {
+        const p: PropulsionMaster = { id: uuidv4(), ...data, createdAt: now(), updatedAt: now() };
+        set((s) => ({ propulsions: [...s.propulsions, p] }));
+        return p;
+      },
+
+      updatePropulsion: (id, data) =>
+        set((s) => ({
+          propulsions: s.propulsions.map((p) => p.id === id ? { ...p, ...data, updatedAt: now() } : p),
+        })),
+
+      deletePropulsion: (id) =>
+        set((s) => ({ propulsions: s.propulsions.filter((p) => p.id !== id) })),
 
       componentCategoryPresets: DEFAULT_CATEGORY_PRESETS,
 
