@@ -27,6 +27,11 @@ const PROJECT_FREE_VIEWS: ReadonlySet<AppView> = new Set([
   'shapeMaster',
   'aeroCoeffMaster',
   'debrisMaster',
+  'groundAntennaData',
+  'vehicleAntennaData',
+  'propulsionMaster',
+  'windMaster',
+  'failureRateMaster',
   // 申請書は全プロジェクト横断のミッション一覧
   'applications',
 ]);

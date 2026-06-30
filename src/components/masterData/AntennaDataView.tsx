@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
+import { useAppStore } from '../../stores/appStore';
 import { useMasterDataStore } from '../../stores/masterDataStore';
 import type { AntennaData } from '../../types';
 
+type AntennaType = 'ground' | 'rocket';
+
+interface Props {
+  /** 指定すると、その種別だけの専用マスター画面になる（地上局/機体で分割） */
+  lockType?: AntennaType;
+}
+
 interface FormState {
   name: string;
-  type: 'ground' | 'rocket';
+  type: AntennaType;
   frequencyBand: string;
   frequencyMHz: string;
   gainDbi: string;
@@ -14,8 +22,8 @@ interface FormState {
   memo: string;
 }
 
-const emptyForm = (): FormState => ({
-  name: '', type: 'ground', frequencyBand: '', frequencyMHz: '',
+const emptyForm = (type: AntennaType = 'ground'): FormState => ({
+  name: '', type, frequencyBand: '', frequencyMHz: '',
   gainDbi: '', eirpDbw: '', gtDbK: '', polarization: '', memo: '',
 });
 
@@ -37,7 +45,8 @@ const TYPE_BADGE_CLASS: Record<'ground' | 'rocket', string> = {
 const FREQ_BANDS = ['', 'VHF', 'UHF', 'L-band', 'S-band', 'C-band', 'X-band', 'Ku-band', 'Ka-band', 'その他'];
 const POLARIZATIONS = ['', 'RHCP', 'LHCP', 'Linear (H)', 'Linear (V)', 'Dual'];
 
-export const AntennaDataView: React.FC = () => {
+export const AntennaDataView: React.FC<Props> = ({ lockType }) => {
+  const navigate = useAppStore((s) => s.navigate);
   const antennas = useMasterDataStore((s) => s.antennas);
   const addAntenna = useMasterDataStore((s) => s.addAntenna);
   const updateAntenna = useMasterDataStore((s) => s.updateAntenna);
@@ -47,18 +56,23 @@ export const AntennaDataView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<AntennaData | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm());
+  const [form, setForm] = useState<FormState>(emptyForm(lockType));
   const [confirmDelete, setConfirmDelete] = useState<AntennaData | null>(null);
 
+  // lockType 指定時はその種別だけを扱う専用マスター（タイトル・絞り込み・新規既定値を固定）
+  const title = lockType === 'ground' ? '地上局アンテナデータ'
+    : lockType === 'rocket' ? '機体アンテナデータ'
+    : 'アンテナデータ';
+
   const filtered = antennas.filter((a) => {
-    const matchType = typeFilter === 'all' || a.type === typeFilter;
+    const matchType = lockType ? a.type === lockType : (typeFilter === 'all' || a.type === typeFilter);
     const matchSearch = !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.frequencyBand.toLowerCase().includes(search.toLowerCase());
     return matchType && matchSearch;
   });
 
   const openCreate = () => {
     setEditTarget(null);
-    setForm(emptyForm());
+    setForm(emptyForm(lockType));
     setShowModal(true);
   };
 
@@ -102,10 +116,19 @@ export const AntennaDataView: React.FC = () => {
 
   return (
     <div>
+      <div className="d-flex align-items-center gap-2 mb-1">
+        <button
+          className="btn btn-link btn-sm p-0 text-muted"
+          style={{ textDecoration: 'none' }}
+          onClick={() => navigate('masterDataHub')}
+        >
+          <i className="bi bi-arrow-left me-1" />マスタデータ
+        </button>
+      </div>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h1 className="page-title">
           <i className="bi bi-broadcast me-2 text-primary" />
-          アンテナデータ
+          {title}
         </h1>
         <button className="btn btn-primary btn-sm" onClick={openCreate}>
           <i className="bi bi-plus-lg me-1" />
@@ -114,17 +137,19 @@ export const AntennaDataView: React.FC = () => {
       </div>
 
       <div className="filter-bar mb-3 rounded">
-        <div className="btn-group btn-group-sm">
-          {(['all', 'ground', 'rocket'] as const).map((t) => (
-            <button
-              key={t}
-              className={`btn ${typeFilter === t ? 'btn-primary' : 'btn-outline-secondary'}`}
-              onClick={() => setTypeFilter(t)}
-            >
-              {t === 'all' ? 'すべて' : TYPE_LABELS[t]}
-            </button>
-          ))}
-        </div>
+        {!lockType && (
+          <div className="btn-group btn-group-sm">
+            {(['all', 'ground', 'rocket'] as const).map((t) => (
+              <button
+                key={t}
+                className={`btn ${typeFilter === t ? 'btn-primary' : 'btn-outline-secondary'}`}
+                onClick={() => setTypeFilter(t)}
+              >
+                {t === 'all' ? 'すべて' : TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="input-group input-group-sm" style={{ maxWidth: 280 }}>
           <span className="input-group-text bg-white"><i className="bi bi-search" /></span>
           <input
@@ -211,17 +236,19 @@ export const AntennaDataView: React.FC = () => {
               </div>
               <div className="modal-body">
                 <div className="row g-3">
-                  <div className="col-md-8">
+                  <div className={lockType ? 'col-12' : 'col-md-8'}>
                     <label className="form-label fw-medium">アンテナ名 <span className="text-danger">*</span></label>
                     <input className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例: 種子島管制局 S帯パラボラ" autoFocus />
                   </div>
-                  <div className="col-md-4">
-                    <label className="form-label fw-medium">タイプ</label>
-                    <select className="form-select" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'ground' | 'rocket' })}>
-                      <option value="ground">地上局</option>
-                      <option value="rocket">ロケット</option>
-                    </select>
-                  </div>
+                  {!lockType && (
+                    <div className="col-md-4">
+                      <label className="form-label fw-medium">タイプ</label>
+                      <select className="form-select" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as AntennaType })}>
+                        <option value="ground">地上局</option>
+                        <option value="rocket">ロケット</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="col-md-4">
                     <label className="form-label fw-medium">周波数帯</label>
                     <select className="form-select" value={form.frequencyBand} onChange={(e) => setForm({ ...form, frequencyBand: e.target.value })}>

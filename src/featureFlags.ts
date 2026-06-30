@@ -54,9 +54,13 @@ export const FEATURE_FLAGS = {
 
   // ── マスタデータ ─────────────────────────────────────────────────────────────
   masterData: {
-    antennaData: true,        // アンテナデータ
+    groundAntenna: true,      // 地上局アンテナデータ
+    vehicleAntenna: true,     // 機体アンテナデータ
     debrisData: true,         // 代表破片データ
     rocketShapeData: true,    // 機体形状データ（解析UI削除分を保持）
     aeroCoeffData: true,      // 空力係数データ（解析UI削除分を保持）
+    propulsionData: true,     // 推進系データ
+    windData: true,           // 風データ
+    failureRateData: true,    // 故障率データ
   },
 };

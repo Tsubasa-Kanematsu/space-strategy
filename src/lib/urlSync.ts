@@ -28,6 +28,11 @@ export function navToUrl(state: AppNavState): string {
     case 'shapeMaster':         return '/master-data/shape';
     case 'aeroCoeffMaster':     return '/master-data/aero';
     case 'debrisMaster':        return '/master-data/debris';
+    case 'groundAntennaData':   return '/master-data/antenna-ground';
+    case 'vehicleAntennaData':  return '/master-data/antenna-vehicle';
+    case 'propulsionMaster':    return '/master-data/propulsion';
+    case 'windMaster':          return '/master-data/wind';
+    case 'failureRateMaster':   return '/master-data/failure-rate';
     case 'vehicleUnits':        return `${p}/units`;
     case 'vehicleUnitDetail':   return `${p}${vu}`;
     case 'applications':        return '/applications';
@@ -78,10 +83,15 @@ export function urlToNav(pathname: string, search: string): AppNavState {
   if (parts[0] === 'antenna') return { ...base, view: 'antennaData' };
   if (parts[0] === 'master-data') {
     switch (parts[1]) {
-      case 'shape':  return { ...base, view: 'shapeMaster' };
-      case 'aero':   return { ...base, view: 'aeroCoeffMaster' };
-      case 'debris': return { ...base, view: 'debrisMaster' };
-      default:       return { ...base, view: 'masterDataHub' };
+      case 'shape':            return { ...base, view: 'shapeMaster' };
+      case 'aero':             return { ...base, view: 'aeroCoeffMaster' };
+      case 'debris':           return { ...base, view: 'debrisMaster' };
+      case 'antenna-ground':   return { ...base, view: 'groundAntennaData' };
+      case 'antenna-vehicle':  return { ...base, view: 'vehicleAntennaData' };
+      case 'propulsion':       return { ...base, view: 'propulsionMaster' };
+      case 'wind':             return { ...base, view: 'windMaster' };
+      case 'failure-rate':     return { ...base, view: 'failureRateMaster' };
+      default:                 return { ...base, view: 'masterDataHub' };
     }
   }
   if (parts[0] === 'applications') {

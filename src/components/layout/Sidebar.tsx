@@ -23,6 +23,7 @@ const PROJECT_LIKE_VIEWS: AppView[] = [
 // マスタデータ配下の view
 const MASTER_LIKE_VIEWS: AppView[] = [
   'masterDataHub', 'antennaData', 'shapeMaster', 'aeroCoeffMaster', 'debrisMaster',
+  'groundAntennaData', 'vehicleAntennaData', 'propulsionMaster', 'windMaster', 'failureRateMaster',
 ];
 
 // 申請書配下の view

@@ -24,12 +24,20 @@ export const MasterDataHub: React.FC = () => {
   const md = FEATURE_FLAGS.masterData as Record<string, boolean | undefined>;
   const cards: HubCard[] = [
     {
-      label: 'アンテナデータ',
-      description: '通信用アンテナのスペック (利得・指向性・周波数等) を管理',
-      icon: 'broadcast',
-      view: 'antennaData' as AppView,
+      label: '地上局アンテナデータ',
+      description: '地上局アンテナのスペック (利得・G/T・周波数等) を管理',
+      icon: 'broadcast-pin',
+      view: 'groundAntennaData' as AppView,
       accent: '#0891b2',
-      enabled: () => !!md.antennaData,
+      enabled: () => !!md.groundAntenna,
+    },
+    {
+      label: '機体アンテナデータ',
+      description: '機体搭載アンテナのスペック (利得・EIRP・周波数等) を管理',
+      icon: 'broadcast',
+      view: 'vehicleAntennaData' as AppView,
+      accent: '#2563eb',
+      enabled: () => !!md.vehicleAntenna,
     },
     {
       label: '代表破片データ',
@@ -54,6 +62,30 @@ export const MasterDataHub: React.FC = () => {
       view: 'aeroCoeffMaster' as AppView,
       accent: '#0d9488',
       enabled: () => !!md.aeroCoeffData,
+    },
+    {
+      label: '推進系データ',
+      description: '各段エンジンの推力・比推力・燃焼時間など推進系の代表諸元',
+      icon: 'fire',
+      view: 'propulsionMaster' as AppView,
+      accent: '#dc2626',
+      enabled: () => !!md.propulsionData,
+    },
+    {
+      label: '風データ',
+      description: '射場上空の高度別 風速・風向プロファイル (飛行・分散・荷重の入力)',
+      icon: 'tornado',
+      view: 'windMaster' as AppView,
+      accent: '#0284c7',
+      enabled: () => !!md.windData,
+    },
+    {
+      label: '故障率データ',
+      description: 'サブシステム別の故障率・故障モード (Pi/Ec・飛行安全解析の入力)',
+      icon: 'exclamation-triangle',
+      view: 'failureRateMaster' as AppView,
+      accent: '#d97706',
+      enabled: () => !!md.failureRateData,
     },
   ].filter((c) => c.enabled());
 

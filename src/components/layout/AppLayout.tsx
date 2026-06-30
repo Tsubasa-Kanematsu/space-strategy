@@ -14,6 +14,9 @@ import { ApplicationDetail } from '../applications/ApplicationDetail';
 import { ShapeMasterView } from '../masterData/ShapeMasterView';
 import { AeroCoeffView } from '../masterData/AeroCoeffView';
 import { DebrisMasterView } from '../masterData/DebrisMasterView';
+import { PropulsionMasterView } from '../masterData/PropulsionMasterView';
+import { WindMasterView } from '../masterData/WindMasterView';
+import { FailureRateMasterView } from '../masterData/FailureRateMasterView';
 // MassCaseList は廃止 (traceability ビューに統合)
 // import { MassCaseList } from '../massCase/MassCaseList';
 import { MassModel } from '../massCase/MassModel';
@@ -103,6 +106,11 @@ const ViewComponent: React.FC = () => {
     case 'analysisFlow':      return <AnalysisFlowList />;
     case 'analysisFlowDetail': return <AnalysisFlowEditor />;
     case 'antennaData':       return <AntennaDataView />;
+    case 'groundAntennaData': return <AntennaDataView lockType="ground" />;
+    case 'vehicleAntennaData':return <AntennaDataView lockType="rocket" />;
+    case 'propulsionMaster':  return <PropulsionMasterView />;
+    case 'windMaster':        return <WindMasterView />;
+    case 'failureRateMaster': return <FailureRateMasterView />;
     case 'pluginCases':       return <PluginCaseList />;
     case 'pluginCondition':   return <PluginConditionView />;
     case 'analysisHub':       return <AnalysisHub />;

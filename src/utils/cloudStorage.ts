@@ -405,6 +405,57 @@ async function setMassCaseStore(value: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// 汎用キーの書き込みデバウンス + 排他ロック
+//
+// 問題: zustand persist は state 変更ごとに「全 state」を setItem する。
+//   サンプルデータ投入などで同一キーへ短時間に N 回 setItem が走ると、
+//   directSet の PUT が並行発火し、ネットワークの完了順次第で「古い state を
+//   含む PUT が最後に着地」してデータが巻き戻る（= 書き込みロスト）。
+//
+// 解決: massCase 用の仕組みを汎用化。キー単位で
+//   - trailing debounce (120ms) で連続書き込みをまとめ、
+//   - 書き込み中は最新値だけ保持して直列に再書き込みする（並行 PUT を作らない）。
+//   persist は full state を毎回送るので、最新値だけ書けば正しい。
+// ─────────────────────────────────────────────────────────────────
+interface KeyWriteState {
+  timer: ReturnType<typeof setTimeout> | null;
+  pending: string | null;
+  active: boolean;
+}
+const keyWrites = new Map<string, KeyWriteState>();
+
+function scheduleKeyWrite(key: string, value: string): void {
+  let st = keyWrites.get(key);
+  if (!st) {
+    st = { timer: null, pending: null, active: false };
+    keyWrites.set(key, st);
+  }
+  st.pending = value;
+
+  // 書き込み実行中 → 値だけ更新（完了後ループで処理される）
+  if (st.active) return;
+
+  if (st.timer) {
+    clearTimeout(st.timer);
+  } else {
+    pendingWrites++;
+  }
+  st.timer = setTimeout(async () => {
+    st!.timer = null;
+    st!.active = true;
+    // 実行中に届いた最新値まで必ず1回書く（直列・並行 PUT なし）
+    while (st!.pending !== null) {
+      const val = st!.pending;
+      st!.pending = null;
+      const ok = await directSet(key, val);
+      if (!ok) onWriteError?.();
+    }
+    st!.active = false;
+    pendingWrites--;
+  }, 120);
+}
+
+// ─────────────────────────────────────────────────────────────────
 // 公開インターフェース（Zustand persist が使用）
 // ─────────────────────────────────────────────────────────────────
 
@@ -418,8 +469,7 @@ export const cloudStorage = {
       scheduleMassCaseWrite(value);
       return;
     }
-    const ok = await directSet(key, value);
-    if (!ok) onWriteError?.();
+    scheduleKeyWrite(key, value);
   },
 
   removeItem: async (key: string): Promise<void> => {

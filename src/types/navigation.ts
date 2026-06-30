@@ -21,6 +21,16 @@ export type AppView =
   /** 解析フロー: 個別フロー編集画面 */
   | 'analysisFlowDetail'
   | 'antennaData'
+  /** マスタデータ: 地上局アンテナ */
+  | 'groundAntennaData'
+  /** マスタデータ: 機体アンテナ */
+  | 'vehicleAntennaData'
+  /** マスタデータ: 推進系データ */
+  | 'propulsionMaster'
+  /** マスタデータ: 風データ */
+  | 'windMaster'
+  /** マスタデータ: 故障率データ */
+  | 'failureRateMaster'
   /** カスタム解析: ケース一覧 */
   | 'pluginCases'
   /** カスタム解析: 個別ケース条件・実行 */
