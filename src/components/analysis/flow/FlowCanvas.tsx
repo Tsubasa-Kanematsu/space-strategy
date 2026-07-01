@@ -12,12 +12,14 @@ import {
   type EdgeChange,
   type OnNodeDrag,
   type IsValidConnection,
+  type ReactFlowInstance,
   MarkerType,
 } from '@xyflow/react';
 
 import { useAnalysisFlowStore } from '../../../stores/analysisFlowStore';
 import { useAnalysisStore } from '../../../stores/analysisStore';
 import type { AnalysisFlow, AnalysisServiceType } from '../../../types';
+import { SERVICE_META } from '../analysisServiceMeta';
 import FlowStepNode from './FlowStepNode';
 import LoopEdge from './LoopEdge';
 import { stepsToNodes, stepsToEdges, wouldCreateCycle } from './flowUtils';
@@ -203,6 +205,28 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
     [onNodeOpen, setSelectedStepId]
   );
 
+  // ── パレットからのドラッグ&ドロップで解析ステップを追加 ─────────────────
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance<FlowStepNodeType> | null>(null);
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const svc = e.dataTransfer.getData('application/analysis-service') as AnalysisServiceType;
+    if (!svc || !rfInstance) return;
+    const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    addStep(flow.id, {
+      order: flow.steps.length,
+      label: SERVICE_META[svc]?.label ?? svc,
+      kind: 'normal',
+      status: 'pending',
+      notes: '',
+      dataBindings: [],
+      position,
+    }, null);
+  }, [rfInstance, flow.id, flow.steps.length, addStep]);
+
   // ── 右クリック: ノード上で「後段に追加 / 並列に追加 / 削除」 ─────────────
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: FlowStepNodeType) => {
@@ -333,8 +357,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
       </div>
       )}
       {/* ReactFlow キャンバス */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0 }} onDrop={onDrop} onDragOver={onDragOver}>
         <ReactFlow
+          onInit={setRfInstance}
           nodes={nodes}
           edges={edges}
           nodeTypes={NODE_TYPES}

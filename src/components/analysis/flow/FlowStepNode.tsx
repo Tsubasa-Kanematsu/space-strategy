@@ -25,8 +25,8 @@ const STATUS_BG: Record<string, string> = {
  */
 const FlowStepNode = memo(({ data, selected }: NodeProps<FlowStepNodeType>) => {
   const isDecision = data.kind === 'decision';
-  // 「実際にケース/DBがリンクされているか」 を判定。判定ステップは常に "設定済" 扱い。
-  const isUnset = !isDecision && data.linkedType === 'none';
+  // 「未設定」表示にするか。テンプレの候補ラベルが解析名なら名前を出す（flowUtils で解決済）。
+  const isUnset = !isDecision && data.isUnset;
 
   return (
     <div

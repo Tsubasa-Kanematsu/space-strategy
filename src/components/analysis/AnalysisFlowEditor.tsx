@@ -5,6 +5,7 @@ import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { CommonParams } from './CommonParams';
 import { AnalysisConditionModal } from './AnalysisConditionsSection';
 import { ExecutionManager } from './ExecutionManager';
+import { AnalysisPalette } from './AnalysisPalette';
 import type { AnalysisFlow, AnalysisEntry } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -361,6 +362,7 @@ export const AnalysisFlowEditor: React.FC = () => {
                   <i className="bi bi-stars me-1" />テンプレート
                 </button>
               </div>
+              <AnalysisPalette />
               <FlowCard
                 flow={flow}
                 projectId={flow.projectId}

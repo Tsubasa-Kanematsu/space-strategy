@@ -2,6 +2,7 @@ import type { Node, Edge } from '@xyflow/react';
 import type { AnalysisFlowStep, AnalysisServiceType } from '../../../types';
 import { MarkerType } from '@xyflow/react';
 import { SERVICE_META } from '../analysisServiceMeta';
+import { resolveSeedFromLabel } from './flowTemplates';
 
 // ─── Node データ型 ────────────────────────────────────────────────────────────
 
@@ -11,6 +12,8 @@ export type FlowStepNodeData = {
   stepNumber: number;       // 1-based 表示番号
   status: 'pending' | 'in_progress' | 'done';
   linkedType: 'none' | 'analysis' | 'sizing' | 'db' | 'plugin';
+  /** タイトルに「未設定」を出すか（テンプレの候補ラベルが解析名なら false＝名前を出す） */
+  isUnset: boolean;
   isLoopTarget: boolean;    // 他のステップのループ先になっているか
   /**
    * 自身がループ元 (判定ステップで loopBackToStepId が設定されている) ときの
@@ -155,6 +158,7 @@ export function stepsToNodes(
     // 具体的なサービス名 (荷重解析 等) は title 側で示す。
     let iconName = 'circle';
     let subtitle = '未設定';
+    let isUnset = false;
     if (isDecision) {
       iconName = 'question-diamond';
       subtitle = '判定';
@@ -172,8 +176,16 @@ export function stepsToNodes(
       iconName = 'database';
       subtitle = 'DB更新';
     } else {
-      iconName = 'circle';
-      subtitle = '未設定';
+      // 未リンクでも、テンプレの候補ラベルが解析名なら名前とアイコンを出す（起動時から）
+      const seed = resolveSeedFromLabel(step.label);
+      if (seed && seed.kind === 'analysis') {
+        iconName = SERVICE_META[seed.service].icon;
+        subtitle = '解析';
+      } else {
+        iconName = 'circle';
+        subtitle = '未設定';
+        isUnset = true;
+      }
     }
     return {
       id: step.id,
@@ -191,6 +203,7 @@ export function stepsToNodes(
         kind: step.kind ?? 'normal',
         iconName,
         subtitle,
+        isUnset,
       },
       style: { width: NODE_WIDTH },
       deletable: false,
