@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { PHASE_META } from '../../types/vehicleUnit';
 import { MasterSelectPanel } from './MasterSelectPanel';
 import { MassModel } from '../massCase/MassModel';
+import { ErrorSourceView } from '../rocketDb/ErrorSourceView';
 import type { AnalysisFlow } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -202,6 +203,8 @@ export const AnalysisFlowEditor: React.FC = () => {
   const units = useVehicleUnitStore((s) => s.units);
   const updatePhase = useVehicleUnitStore((s) => s.updatePhase);
   const addCase = useMassCaseStore((s) => s.addCase);
+  const allComponents = useMassCaseStore((s) => s.components);
+  const getComponentsForCase = useMassCaseStore((s) => s.getComponentsForCase);
 
   const flow = analysisFlowId ? flows.find((f) => f.id === analysisFlowId) : null;
   // このフローを所有する号機（PT/FT）。あれば共通パラメータ（マスタ/機体諸元）を上部に出す。
@@ -210,11 +213,19 @@ export const AnalysisFlowEditor: React.FC = () => {
     ? (ownerUnit.pt.flowId === flow.id ? 'PT' : 'FT')
     : null;
 
+  // 共通パラメータ対象の massCase と統計（カード上のバッジ用）。
+  const ownerPs = ownerUnit ? (ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft) : null;
+  const massCaseId = ownerPs?.massCaseId ?? null;
+  const caseComponents = useMemo(
+    () => (massCaseId ? getComponentsForCase(massCaseId) : []),
+    [allComponents, massCaseId, getComponentsForCase],
+  );
+
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   // 共通パラメータのインライン展開（フロー画面上で設定。画面遷移なし）
-  const [activePanel, setActivePanel] = useState<'conditions' | 'master' | null>(null);
+  const [activePanel, setActivePanel] = useState<'mass' | 'error' | 'master' | null>(null);
 
   if (!flow) {
     return (
@@ -247,16 +258,17 @@ export const AnalysisFlowEditor: React.FC = () => {
     }
   };
 
-  // 共通パラメータ: マスタ選択件数（① マスタ）
-  const ownerPs = ownerUnit ? (ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft) : null;
+  // 共通パラメータのカード用 統計
   const masterSelCount = ownerPs?.masterSelections
     ? Object.values(ownerPs.masterSelections).reduce((n, a) => n + (a?.length ?? 0), 0)
     : 0;
+  const partCount = caseComponents.length;
+  const errorCount = caseComponents.reduce((n, c) => n + (c.errorSources?.length ?? 0), 0);
 
-  // ② 機体諸元（条件設定）を開く（無ければ作成）。画面遷移せずフロー画面上にインライン展開。
-  const openConditions = () => {
+  // 質量諸元／誤差源が対象とする massCase を用意（無ければ作成）。MassModel/ErrorSourceView は
+  // appStore の massCaseId/projectId を参照するため、view は変えずにセットする。
+  const ensureMassCase = () => {
     if (!ownerUnit || !ownerPhase) return;
-    if (activePanel === 'conditions') { setActivePanel(null); return; }
     const ps = ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft;
     let mc = ps.massCaseId;
     if (!mc) {
@@ -264,51 +276,103 @@ export const AnalysisFlowEditor: React.FC = () => {
       mc = c.id;
       updatePhase(ownerUnit.id, ownerPhase, { massCaseId: mc });
     }
-    // MassModel は appStore の massCaseId/projectId を参照する（view は変えない）
     useAppStore.setState({ projectId: ownerUnit.projectId, massCaseId: mc });
-    setActivePanel('conditions');
   };
+  const activate = (panel: 'mass' | 'error' | 'master') => {
+    if (activePanel === panel) { setActivePanel(null); return; }
+    if (panel === 'mass' || panel === 'error') ensureMassCase();
+    setActivePanel(panel);
+  };
+
+  // フラットな共通パラメータカード（3種類：質量諸元／誤差源／マスタ選択）
+  const paramCards: {
+    id: 'mass' | 'error' | 'master'; icon: string; color: string;
+    title: string; desc: string; status: React.ReactNode;
+  }[] = [
+    {
+      id: 'mass', icon: 'box-seam', color: '#2563eb',
+      title: '質量諸元', desc: 'コンポーネント構成・質量・重心・慣性テンソルを設定',
+      status: partCount > 0
+        ? <span className="badge bg-primary-subtle text-primary">{partCount} 部品</span>
+        : <span className="badge bg-light text-muted border">未設定</span>,
+    },
+    {
+      id: 'error', icon: 'exclamation-diamond', color: '#d97706',
+      title: '誤差源', desc: 'コンポーネント別の誤差源（3σ値）を登録',
+      status: errorCount > 0
+        ? <span className="badge bg-warning-subtle text-warning-emphasis">{errorCount} 件</span>
+        : <span className="badge bg-light text-muted border">未登録</span>,
+    },
+    {
+      id: 'master', icon: 'collection', color: '#059669',
+      title: 'マスターデータ選択', desc: '解析で使うマスタ項目（機体形状・推進系・アンテナ等）を選択',
+      status: masterSelCount > 0
+        ? <span className="badge bg-success-subtle text-success-emphasis">{masterSelCount} 件選択</span>
+        : <span className="badge bg-light text-muted border">未選択</span>,
+    },
+  ];
 
   return (
     <div>
-      {/* 全解析の共通パラメータ（号機フェーズのフローのみ）: ② 機体諸元 ＋ ① マスタ。
-          クリックでこのフロー画面上にインライン展開（画面遷移なし）。 */}
+      {/* 全解析の共通パラメータ（号機フェーズのフローのみ）。フラットな3カードで、
+          「この解析フローで何を設定できるか」を直感的に提示。クリックで下にインライン展開。 */}
       {ownerUnit && ownerPhase && (
-        <div className="card mb-2" style={{ borderColor: '#cfe0ff' }}>
-          <div className="card-body py-2 d-flex align-items-center gap-2 flex-wrap" style={{ background: '#f5f9ff' }}>
-            <span className="fw-semibold small text-primary me-1"><i className="bi bi-sliders me-1" />共通パラメータ</span>
-            <button
-              className={`btn btn-sm ${activePanel === 'conditions' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={openConditions}
-              title="機体諸元（このフェーズ共通の条件設定）をこの画面で設定"
-            >
-              <i className={`bi ${activePanel === 'conditions' ? 'bi-chevron-down' : 'bi-box-seam'} me-1`} />機体諸元（条件設定）
-            </button>
-            <span style={{ borderLeft: '1px solid #cfe0ff', height: 22, margin: '0 4px' }} />
-            <button
-              className={`btn btn-sm ${activePanel === 'master' ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setActivePanel(activePanel === 'master' ? null : 'master')}
-              title="各マスタから使用する項目を選択"
-            >
-              <i className={`bi ${activePanel === 'master' ? 'bi-chevron-down' : 'bi-collection'} me-1`} />マスタを選択
-              {masterSelCount > 0 && <span className="badge bg-primary ms-1">{masterSelCount}</span>}
-            </button>
-            {activePanel && (
-              <button className="btn btn-sm btn-link text-secondary ms-auto py-0" onClick={() => setActivePanel(null)}>
-                <i className="bi bi-chevron-up me-1" />閉じる
-              </button>
-            )}
+        <div className="mb-3">
+          <div className="d-flex align-items-center mb-2">
+            <span className="fw-semibold small"><i className="bi bi-sliders me-1 text-primary" />共通パラメータ</span>
+            <span className="text-muted ms-2" style={{ fontSize: '0.75rem' }}>この解析フローで使う条件（全解析で共通）</span>
+          </div>
+          <div className="row g-2">
+            {paramCards.map((c) => {
+              const active = activePanel === c.id;
+              return (
+                <div key={c.id} className="col-md-4">
+                  <button
+                    className="w-100 text-start border rounded-3 p-3 h-100"
+                    style={{
+                      background: active ? '#f2f7ff' : '#fff',
+                      borderColor: active ? c.color : '#e5e7eb',
+                      borderWidth: active ? 2 : 1,
+                      boxShadow: active ? '0 1px 6px rgba(37,99,235,0.12)' : 'none',
+                      transition: 'all .12s',
+                    }}
+                    onClick={() => activate(c.id)}
+                  >
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                      <span
+                        className="d-inline-flex align-items-center justify-content-center rounded-2"
+                        style={{ width: 34, height: 34, background: `${c.color}1a`, color: c.color, flexShrink: 0 }}
+                      >
+                        <i className={`bi bi-${c.icon}`} style={{ fontSize: '1.05rem' }} />
+                      </span>
+                      <span className="fw-semibold">{c.title}</span>
+                      <i className={`bi bi-chevron-${active ? 'up' : 'down'} ms-auto text-muted`} style={{ fontSize: '0.8rem' }} />
+                    </div>
+                    <div className="text-muted mb-2" style={{ fontSize: '0.76rem', lineHeight: 1.35 }}>{c.desc}</div>
+                    <div style={{ fontSize: '0.72rem' }}>{c.status}</div>
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
-          {/* インライン展開: 機体諸元（質量エディタ）／マスタ選択 */}
-          {activePanel === 'conditions' && (
-            <div className="border-top p-2" style={{ background: '#fbfdff' }}>
-              <MassModel />
-            </div>
-          )}
-          {activePanel === 'master' && (
-            <div className="border-top p-2" style={{ background: '#fbfdff' }}>
-              <MasterSelectPanel unit={ownerUnit} phase={ownerPhase} />
+          {/* 選択したカードの内容をインライン展開（画面遷移なし） */}
+          {activePanel && (
+            <div className="border rounded-3 mt-2" style={{ borderColor: '#e5e7eb' }}>
+              <div className="d-flex align-items-center px-3 py-2 border-bottom" style={{ background: '#f8fafc' }}>
+                <span className="fw-semibold small">
+                  <i className={`bi bi-${paramCards.find((c) => c.id === activePanel)!.icon} me-1 text-primary`} />
+                  {paramCards.find((c) => c.id === activePanel)!.title}
+                </span>
+                <button className="btn btn-sm btn-link text-secondary ms-auto py-0" onClick={() => setActivePanel(null)}>
+                  <i className="bi bi-x-lg me-1" />閉じる
+                </button>
+              </div>
+              <div className="p-2">
+                {activePanel === 'mass' && <MassModel />}
+                {activePanel === 'error' && <ErrorSourceView embedded />}
+                {activePanel === 'master' && <MasterSelectPanel unit={ownerUnit} phase={ownerPhase} />}
+              </div>
             </div>
           )}
         </div>

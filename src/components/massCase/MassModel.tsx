@@ -1026,7 +1026,7 @@ export const MassModel: React.FC = () => {
     document.addEventListener('mouseup', onUp);
   };
   // 起動時に AnalysisConditionView 等から sessionStorage 経由で初期タブが指定されていれば採用
-  const [dataView, setDataView] = useState<DataView>(() => {
+  const [dataView] = useState<DataView>(() => {
     try {
       const v = sessionStorage.getItem('rocketdb.massModel.initialTab');
       if (v) {
@@ -2449,24 +2449,7 @@ export const MassModel: React.FC = () => {
         * Bootstrap の .card-body は flex:1 1 auto がデフォルトで、ここで grow させると
         * mm-table-wrap と取り合って table 領域が押しつぶされる。明示的に grow:0 に。 */}
       <div className="card" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div className="card-header d-flex align-items-center gap-2 py-2 mm-card-header" style={{ fontSize: '0.82rem', flex: '0 0 auto' }}>
-          <span className="text-muted fw-semibold">表示データ</span>
-          <div className="btn-group btn-group-sm" role="group">
-            {([
-              { id: 'mass',        label: '諸元',   icon: 'box-seam' },
-              { id: 'errorsource', label: '誤差源', icon: 'exclamation-diamond' },
-            ] as { id: DataView; label: string; icon: string }[]).map((opt) => (
-              <button
-                key={opt.id}
-                className={`btn ${dataView === opt.id ? 'btn-primary' : 'btn-outline-secondary'}`}
-                style={{ fontSize: '0.76rem', padding: '2px 10px' }}
-                onClick={() => setDataView(opt.id)}
-              >
-                <i className={`bi bi-${opt.icon} me-1`} />{opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* 表示データ切替は廃止（質量諸元＝この諸元ビュー、誤差源は上位カードに分離） */}
         {/* タブストリップ: 複数フォルダを並行で開いて切替できる。Root タブは常に存在 */}
         {tabs.length > 1 && (
           <div
