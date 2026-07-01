@@ -3,8 +3,8 @@ import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { PHASE_META } from '../../types/vehicleUnit';
-import { MasterSelectModal } from './MasterSelectModal';
-import { ConditionsModal } from './ConditionsModal';
+import { MasterSelectPanel } from './MasterSelectPanel';
+import { MassModel } from '../massCase/MassModel';
 import type { AnalysisFlow } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -213,8 +213,8 @@ export const AnalysisFlowEditor: React.FC = () => {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showMasterModal, setShowMasterModal] = useState(false);
-  const [conditionsCaseId, setConditionsCaseId] = useState<string | null>(null);
+  // 共通パラメータのインライン展開（フロー画面上で設定。画面遷移なし）
+  const [activePanel, setActivePanel] = useState<'conditions' | 'master' | null>(null);
 
   if (!flow) {
     return (
@@ -253,9 +253,10 @@ export const AnalysisFlowEditor: React.FC = () => {
     ? Object.values(ownerPs.masterSelections).reduce((n, a) => n + (a?.length ?? 0), 0)
     : 0;
 
-  // ② 機体諸元（条件設定）を開く（無ければ作成）。画面遷移せずモーダルで編集。
+  // ② 機体諸元（条件設定）を開く（無ければ作成）。画面遷移せずフロー画面上にインライン展開。
   const openConditions = () => {
     if (!ownerUnit || !ownerPhase) return;
+    if (activePanel === 'conditions') { setActivePanel(null); return; }
     const ps = ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft;
     let mc = ps.massCaseId;
     if (!mc) {
@@ -263,25 +264,53 @@ export const AnalysisFlowEditor: React.FC = () => {
       mc = c.id;
       updatePhase(ownerUnit.id, ownerPhase, { massCaseId: mc });
     }
-    setConditionsCaseId(mc);
+    // MassModel は appStore の massCaseId/projectId を参照する（view は変えない）
+    useAppStore.setState({ projectId: ownerUnit.projectId, massCaseId: mc });
+    setActivePanel('conditions');
   };
 
   return (
     <div>
-      {/* 全解析の共通パラメータ（号機フェーズのフローのみ）: ② 機体諸元 ＋ ① マスタ */}
-      {ownerUnit && (
+      {/* 全解析の共通パラメータ（号機フェーズのフローのみ）: ② 機体諸元 ＋ ① マスタ。
+          クリックでこのフロー画面上にインライン展開（画面遷移なし）。 */}
+      {ownerUnit && ownerPhase && (
         <div className="card mb-2" style={{ borderColor: '#cfe0ff' }}>
           <div className="card-body py-2 d-flex align-items-center gap-2 flex-wrap" style={{ background: '#f5f9ff' }}>
             <span className="fw-semibold small text-primary me-1"><i className="bi bi-sliders me-1" />共通パラメータ</span>
-            <button className="btn btn-sm btn-primary" onClick={openConditions} title="機体諸元（このフェーズ共通の条件設定）を開く">
-              <i className="bi bi-box-seam me-1" />機体諸元（条件設定）
+            <button
+              className={`btn btn-sm ${activePanel === 'conditions' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={openConditions}
+              title="機体諸元（このフェーズ共通の条件設定）をこの画面で設定"
+            >
+              <i className={`bi ${activePanel === 'conditions' ? 'bi-chevron-down' : 'bi-box-seam'} me-1`} />機体諸元（条件設定）
             </button>
             <span style={{ borderLeft: '1px solid #cfe0ff', height: 22, margin: '0 4px' }} />
-            <button className="btn btn-sm btn-outline-primary" onClick={() => setShowMasterModal(true)} title="各マスタから使用する項目を選択">
-              <i className="bi bi-collection me-1" />マスタを選択
+            <button
+              className={`btn btn-sm ${activePanel === 'master' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setActivePanel(activePanel === 'master' ? null : 'master')}
+              title="各マスタから使用する項目を選択"
+            >
+              <i className={`bi ${activePanel === 'master' ? 'bi-chevron-down' : 'bi-collection'} me-1`} />マスタを選択
               {masterSelCount > 0 && <span className="badge bg-primary ms-1">{masterSelCount}</span>}
             </button>
+            {activePanel && (
+              <button className="btn btn-sm btn-link text-secondary ms-auto py-0" onClick={() => setActivePanel(null)}>
+                <i className="bi bi-chevron-up me-1" />閉じる
+              </button>
+            )}
           </div>
+
+          {/* インライン展開: 機体諸元（質量エディタ）／マスタ選択 */}
+          {activePanel === 'conditions' && (
+            <div className="border-top p-2" style={{ background: '#fbfdff' }}>
+              <MassModel />
+            </div>
+          )}
+          {activePanel === 'master' && (
+            <div className="border-top p-2" style={{ background: '#fbfdff' }}>
+              <MasterSelectPanel unit={ownerUnit} phase={ownerPhase} />
+            </div>
+          )}
         </div>
       )}
 
@@ -349,18 +378,6 @@ export const AnalysisFlowEditor: React.FC = () => {
         />
       )}
 
-      {showMasterModal && ownerUnit && ownerPhase && (
-        <MasterSelectModal unit={ownerUnit} phase={ownerPhase} onClose={() => setShowMasterModal(false)} />
-      )}
-
-      {conditionsCaseId && ownerUnit && ownerPhase && (
-        <ConditionsModal
-          projectId={ownerUnit.projectId}
-          massCaseId={conditionsCaseId}
-          title={`${ownerUnit.unitNo}号機 ${PHASE_META[ownerPhase].label} 機体諸元`}
-          onClose={() => setConditionsCaseId(null)}
-        />
-      )}
     </div>
   );
 };
