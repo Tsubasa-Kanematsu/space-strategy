@@ -111,31 +111,26 @@ export const CommonParams: React.FC<{ unit: VehicleUnit; entry: AnalysisEntry }>
         <span className="text-muted ms-2" style={{ fontSize: '0.75rem' }}>この解析フローで使う条件（全解析で共通）。右の「変更」で選択</span>
       </div>
 
-      {/* 選択サマリのリスト */}
-      <div className="border rounded-3" style={{ borderColor: '#e5e7eb' }}>
-        {rows.map((r, i) => (
-          <div
-            key={r.key}
-            className={`d-flex align-items-center px-3 py-2 ${i < rows.length - 1 ? 'border-bottom' : ''}`}
-          >
-            <span className="d-inline-flex align-items-center gap-2" style={{ width: 150, flexShrink: 0 }}>
-              <span
-                className="d-inline-flex align-items-center justify-content-center rounded-2"
-                style={{ width: 26, height: 26, background: `${r.color}1a`, color: r.color, flexShrink: 0 }}
-              >
-                <i className={`bi bi-${r.icon}`} style={{ fontSize: '0.85rem' }} />
-              </span>
-              <span className="fw-medium small">{r.label}</span>
-            </span>
-            <span
-              className={`flex-grow-1 text-truncate small ${r.isSet ? '' : 'text-muted fst-italic'}`}
-              style={{ minWidth: 0 }}
-              title={r.value}
+      {/* 選択サマリ（コンパクトなカード。クリックで変更） */}
+      <div className="row g-2">
+        {rows.map((r) => (
+          <div key={r.key} className="col-6 col-md-4 col-xl-3">
+            <button
+              className="w-100 text-start border rounded-3 p-2 h-100"
+              style={{ background: '#fff', borderColor: '#e5e7eb' }}
+              onClick={() => setPicker(r.key)}
+              title="クリックで変更"
             >
-              {r.value}
-            </span>
-            <button className="btn btn-sm btn-outline-primary ms-2 py-0" onClick={() => setPicker(r.key)}>
-              <i className="bi bi-pencil-square me-1" />変更
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <span className="d-inline-flex align-items-center justify-content-center rounded-2" style={{ width: 24, height: 24, background: `${r.color}1a`, color: r.color, flexShrink: 0 }}>
+                  <i className={`bi bi-${r.icon}`} style={{ fontSize: '0.8rem' }} />
+                </span>
+                <span className="fw-medium small text-truncate">{r.label}</span>
+                <i className="bi bi-pencil-square ms-auto text-muted" style={{ fontSize: '0.72rem' }} />
+              </div>
+              <div className={`small text-truncate ${r.isSet ? '' : 'text-muted fst-italic'}`} title={r.value}>
+                {r.value}
+              </div>
             </button>
           </div>
         ))}

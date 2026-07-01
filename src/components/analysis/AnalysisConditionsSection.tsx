@@ -221,25 +221,30 @@ export const AnalysisConditionsSection: React.FC<{ flow: AnalysisFlow; massCaseI
           このフローには解析ステップがありません。「実行管理」タブでテンプレートから追加してください。
         </div>
       ) : (
-        <div className="border rounded-3">
-          {items.map((item, i) => {
+        <div className="row g-2">
+          {items.map((item) => {
             const meta = SERVICE_META[item.service];
             const configured = isConfigured(item.caseId);
             return (
-              <div key={item.stepId} className={`d-flex align-items-center px-3 py-2 ${i < items.length - 1 ? 'border-bottom' : ''}`}>
-                <span className="d-inline-flex align-items-center gap-2" style={{ flexShrink: 0 }}>
-                  <span className="d-inline-flex align-items-center justify-content-center rounded-2" style={{ width: 26, height: 26, background: '#05966918', color: '#059669', flexShrink: 0 }}>
-                    <i className={`bi bi-${meta.icon}`} style={{ fontSize: '0.85rem' }} />
-                  </span>
-                  <span className="fw-medium small">{meta.label}</span>
-                </span>
-                <span className="flex-grow-1 text-end me-2">
-                  {configured
-                    ? <span className="badge bg-success-subtle text-success-emphasis">設定済み</span>
-                    : <span className="badge bg-light text-muted border">未設定</span>}
-                </span>
-                <button className="btn btn-sm btn-outline-primary py-0" onClick={() => openCondition(item)}>
-                  <i className="bi bi-pencil-square me-1" />{configured ? '編集' : '条件を設定'}
+              <div key={item.stepId} className="col-6 col-md-4 col-xl-3">
+                <button
+                  className="w-100 text-start border rounded-3 p-2 h-100"
+                  style={{ background: '#fff', borderColor: '#e5e7eb' }}
+                  onClick={() => openCondition(item)}
+                  title="クリックで条件を設定"
+                >
+                  <div className="d-flex align-items-center gap-2 mb-1">
+                    <span className="d-inline-flex align-items-center justify-content-center rounded-2" style={{ width: 24, height: 24, background: '#05966918', color: '#059669', flexShrink: 0 }}>
+                      <i className={`bi bi-${meta.icon}`} style={{ fontSize: '0.8rem' }} />
+                    </span>
+                    <span className="fw-medium small text-truncate">{meta.label}</span>
+                    <i className="bi bi-pencil-square ms-auto text-muted" style={{ fontSize: '0.72rem' }} />
+                  </div>
+                  <div>
+                    {configured
+                      ? <span className="badge bg-success-subtle text-success-emphasis">設定済み</span>
+                      : <span className="badge bg-light text-muted border">未設定</span>}
+                  </div>
                 </button>
               </div>
             );
