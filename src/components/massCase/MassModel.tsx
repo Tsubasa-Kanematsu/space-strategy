@@ -20,6 +20,7 @@ import { exportComponentsToCSV, importComponentsFromCSV, downloadFile } from '..
 import { resolveShadowComponents } from '../../utils/shadowModel';
 import { getActiveCollab } from '../../ws/collabClient';
 import { LINK_SYNC_FIELDS } from '../../stores/slices/componentSlice';
+import { ErrorSourceView } from '../rocketDb/ErrorSourceView';
 
 const INPUT_TYPE_LABELS: Record<ComponentInputType, string> = {
   fixed: '固定値', formula: '計算式', design_var: '設計変数', aggregate: '集計',
@@ -133,7 +134,7 @@ function resolveTags(
   return ids;
 }
 
-type DataView = 'mass' | 'cginertia' | 'material';
+type DataView = 'mass' | 'cginertia' | 'material' | 'errorsource';
 
 interface RowProps {
   comp: MassComponent;
@@ -998,7 +999,7 @@ export const MassModel: React.FC = () => {
       const v = sessionStorage.getItem('rocketdb.massModel.initialTab');
       if (v) {
         sessionStorage.removeItem('rocketdb.massModel.initialTab');
-        if (v === 'mass' || v === 'cginertia' || v === 'material') return v as DataView;
+        if (v === 'mass' || v === 'cginertia' || v === 'errorsource') return v as DataView;
       }
     } catch { /* SSR/プライベートモード等は無視 */ }
     return 'mass';
@@ -2422,7 +2423,7 @@ export const MassModel: React.FC = () => {
             {([
               { id: 'mass',      label: '質量',             icon: 'graph-up' },
               { id: 'cginertia', label: '重心・慣性テンソル', icon: 'crosshair' },
-              { id: 'material',  label: '材質',             icon: 'layers' },
+              { id: 'errorsource', label: '誤差源',         icon: 'exclamation-diamond' },
             ] as { id: DataView; label: string; icon: string }[]).map((opt) => (
               <button
                 key={opt.id}
@@ -2567,6 +2568,11 @@ export const MassModel: React.FC = () => {
             </div>
           </div>
         </div>
+        {dataView === 'errorsource' ? (
+        <div className="mm-embedded-errorsource p-2" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <ErrorSourceView embedded />
+        </div>
+        ) : (
         <div className="table-responsive mm-table-wrap" style={{ ['--mm-col1-w' as never]: `${col1Width}px` }}>
           <table className="table table-hover mb-0">
             <thead>
@@ -2682,6 +2688,7 @@ export const MassModel: React.FC = () => {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* /viewMode !== 'map' */}

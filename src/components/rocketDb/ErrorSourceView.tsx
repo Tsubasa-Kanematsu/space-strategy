@@ -156,7 +156,7 @@ const ComponentSection: React.FC<ComponentSectionProps> = ({
   );
 };
 
-export const ErrorSourceView: React.FC = () => {
+export const ErrorSourceView: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { massCaseId } = useAppStore();
   const cases = useMassCaseStore((s) => s.cases);
   const allComponents = useMassCaseStore((s) => s.components);
@@ -227,13 +227,15 @@ export const ErrorSourceView: React.FC = () => {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h1 className="page-title">
-          <i className="bi bi-exclamation-diamond me-2 text-primary" />
-          誤差源 — {massCase.name}
-        </h1>
-        <small className="text-muted">コンポーネントごとに誤差源を管理します。クリックで編集。</small>
-      </div>
+      {!embedded && (
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h1 className="page-title">
+            <i className="bi bi-exclamation-diamond me-2 text-primary" />
+            誤差源 — {massCase.name}
+          </h1>
+          <small className="text-muted">コンポーネントごとに誤差源を管理します。クリックで編集。</small>
+        </div>
+      )}
 
       <div className="card">
         <div className="table-responsive">
