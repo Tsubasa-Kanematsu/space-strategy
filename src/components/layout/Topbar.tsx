@@ -10,8 +10,7 @@ import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { useApplicationStore } from '../../stores/applicationStore';
 import { SERVICE_META } from '../analysis/analysisServiceMeta';
 import { goBack, canGoBack } from '../../lib/nav';
-import { PHASE_META } from '../../types/vehicleUnit';
-import type { AppView, AppNavState, AnalysisServiceType, VehicleUnit, Application } from '../../types';
+import type { AppView, AppNavState, AnalysisServiceType, VehicleUnit, AnalysisEntry, Application } from '../../types';
 
 /**
  * 各ページの 階層的パンくずリスト。
@@ -143,20 +142,20 @@ interface BuildCrumbsArgs {
   applicationId: string | null;
 }
 
-/** flowId を所有する号機フェーズ（PT/FT）を逆引きする */
-function findFlowOwner(units: VehicleUnit[], flowId: string): { unit: VehicleUnit; phase: 'PT' | 'FT' } | null {
+/** flowId を所有する号機・解析を逆引きする */
+function findFlowOwner(units: VehicleUnit[], flowId: string): { unit: VehicleUnit; entry: AnalysisEntry } | null {
   for (const u of units) {
-    if (u.pt.flowId === flowId) return { unit: u, phase: 'PT' };
-    if (u.ft.flowId === flowId) return { unit: u, phase: 'FT' };
+    const entry = u.analyses.find((a) => a.flowId === flowId);
+    if (entry) return { unit: u, entry };
   }
   return null;
 }
 
-/** massCaseId(機体諸元DB) を所有する号機フェーズ（PT/FT）を逆引きする */
-function findDbOwner(units: VehicleUnit[], massCaseId: string): { unit: VehicleUnit; phase: 'PT' | 'FT' } | null {
+/** massCaseId(機体諸元DB) を所有する号機・解析を逆引きする */
+function findDbOwner(units: VehicleUnit[], massCaseId: string): { unit: VehicleUnit; entry: AnalysisEntry } | null {
   for (const u of units) {
-    if (u.pt.massCaseId === massCaseId) return { unit: u, phase: 'PT' };
-    if (u.ft.massCaseId === massCaseId) return { unit: u, phase: 'FT' };
+    const entry = u.analyses.find((a) => a.massCaseId === massCaseId);
+    if (entry) return { unit: u, entry };
   }
   return null;
 }
@@ -238,7 +237,7 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
         { label: 'プロジェクト', onClick: () => navigate('projects') },
         { label: a.project.name, onClick: () => navigate('vehicleUnits', { projectId: a.projectId ?? undefined as never }) },
         { label: `${owner.unit.unitNo}号機`, onClick: () => navigate('vehicleUnitDetail', { projectId: owner.unit.projectId, vehicleUnitId: owner.unit.id }) },
-        { label: `${PHASE_META[owner.phase].label} パイプライン` },
+        { label: `${owner.entry.name} パイプライン` },
       ];
     }
     return [
@@ -332,7 +331,7 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
           { label: `${owner.unit.unitNo}号機`, onClick: () => navigate('vehicleUnitDetail', { projectId: owner.unit.projectId, vehicleUnitId: owner.unit.id }) },
         ]
       : base;
-    const dbLabel = owner ? `${PHASE_META[owner.phase].label} 条件設定` : dbName;
+    const dbLabel = owner ? `${owner.entry.name} 条件設定` : dbName;
     return [
       ...head,
       { label: dbLabel, onClick: view !== 'massModel'

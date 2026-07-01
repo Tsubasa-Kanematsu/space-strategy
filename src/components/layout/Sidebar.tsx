@@ -39,7 +39,7 @@ export const Sidebar: React.FC = () => {
   // 号機のフェーズに属する解析フローを開いている場合は「プロジェクト」配下とみなす
   // （同じ号機・同じフェーズの隣り合う操作でサイドバーのハイライトが割れないように）
   const flowOwnedByUnit = !!analysisFlowId && units.some(
-    (u) => u.pt.flowId === analysisFlowId || u.ft.flowId === analysisFlowId
+    (u) => u.analyses.some((a) => a.flowId === analysisFlowId)
   );
 
   const isProjectActive = PROJECT_LIKE_VIEWS.includes(view) || (view === 'analysisFlowDetail' && flowOwnedByUnit);

@@ -4,13 +4,13 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { useApplicationStore } from '../../stores/applicationStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
-import { isPtComplete, PHASE_META } from '../../types/vehicleUnit';
+import { isPtComplete } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
 import { BUILTIN_FLOW_TEMPLATES, PT_TEMPLATE_KEY, FT_TEMPLATE_KEY } from '../analysis/flow/flowTemplates';
 import { openInNewWindow } from '../../lib/nav';
-import type { AnalysisPhase, PhaseState, PhaseStatus } from '../../types';
+import type { AnalysisEntry, PhaseStatus } from '../../types';
 
-const PHASE_ACCENT: Record<AnalysisPhase, string> = { PT: '#2563eb', FT: '#0d9488' };
+const KIND_ACCENT: Record<AnalysisEntry['kind'], string> = { PT: '#2563eb', FT: '#0d9488', custom: '#7c3aed' };
 
 const STATUS_BADGE: Record<PhaseStatus, string> = {
   未着手: 'bg-light text-muted',
@@ -24,7 +24,9 @@ export const VehicleUnitDetail: React.FC = () => {
   const navigate = useAppStore((s) => s.navigate);
   const getProject = useProjectStore((s) => s.getProject);
   const getUnit = useVehicleUnitStore((s) => s.getUnit);
-  const updatePhase = useVehicleUnitStore((s) => s.updatePhase);
+  const updateAnalysis = useVehicleUnitStore((s) => s.updateAnalysis);
+  const addAnalysis = useVehicleUnitStore((s) => s.addAnalysis);
+  const deleteAnalysis = useVehicleUnitStore((s) => s.deleteAnalysis);
   const getByUnit = useApplicationStore((s) => s.getByUnit);
   const upsertForUnit = useApplicationStore((s) => s.upsertForUnit);
   const flows = useAnalysisFlowStore((s) => s.flows);
@@ -50,25 +52,9 @@ export const VehicleUnitDetail: React.FC = () => {
   const ptComplete = isPtComplete(unit);
   const app = getByUnit(unit.id);
 
-  const phaseState = (phase: AnalysisPhase): PhaseState => (phase === 'PT' ? unit.pt : unit.ft);
-
-  // フェーズページ（解析フロー）を開く。無ければテンプレートで作成。
-  const openPhase = (phase: AnalysisPhase) => {
-    const ps = phaseState(phase);
-    let fid = ps.flowId;
-    if (!fid) {
-      const tpl = BUILTIN_FLOW_TEMPLATES.find((t) => t.key === (phase === 'PT' ? PT_TEMPLATE_KEY : FT_TEMPLATE_KEY));
-      const f = addFlow({ projectId: unit.projectId, name: `${unit.unitNo}号機 ${PHASE_META[phase].label} 解析フロー`, steps: tpl ? tpl.build() : [] });
-      fid = f.id;
-      updatePhase(unit.id, phase, { flowId: fid });
-    }
-    navigate('analysisFlowDetail', { analysisFlowId: fid, projectId: unit.projectId });
-  };
-
   const generateApplication = () => {
     const data = buildApplicationData({ unit, projectName: project?.name ?? '' });
     const created = upsertForUnit(data);
-    // 申請書は別の括り（申請書）なので新規ウィンドウで開く
     openInNewWindow('applicationDetail', { applicationId: created.id });
   };
 
@@ -77,61 +63,101 @@ export const VehicleUnitDetail: React.FC = () => {
       ? <span className="badge bg-success">設定済み</span>
       : <span className="badge bg-light text-muted">未設定</span>;
 
-  // フェーズのカード（クリックでフェーズページへ遷移）
-  const renderPhase = (phase: AnalysisPhase) => {
-    const ps = phaseState(phase);
-    const meta = PHASE_META[phase];
-    const accent = PHASE_ACCENT[phase];
-    const flow = ps.flowId ? flows.find((f) => f.id === ps.flowId) : null;
+  // 解析ページ（解析フロー）を開く。無ければテンプレートで作成。
+  const openAnalysis = (entry: AnalysisEntry) => {
+    let fid = entry.flowId;
+    if (!fid) {
+      const tplKey = entry.kind === 'PT' ? PT_TEMPLATE_KEY : entry.kind === 'FT' ? FT_TEMPLATE_KEY : null;
+      const tpl = tplKey ? BUILTIN_FLOW_TEMPLATES.find((t) => t.key === tplKey) : null;
+      const f = addFlow({ projectId: unit.projectId, name: `${unit.unitNo}号機 ${entry.name} 解析フロー`, steps: tpl ? tpl.build() : [] });
+      fid = f.id;
+      updateAnalysis(unit.id, entry.id, { flowId: fid });
+    }
+    navigate('analysisFlowDetail', { analysisFlowId: fid, projectId: unit.projectId });
+  };
+
+  const addCustomAnalysis = () => {
+    const name = window.prompt('追加する解析の名称を入力してください', '追加解析');
+    if (!name || !name.trim()) return;
+    addAnalysis(unit.id, { name: name.trim(), icon: 'graph-up', kind: 'custom', status: '未着手' });
+  };
+
+  const removeAnalysis = (entry: AnalysisEntry) => {
+    if (window.confirm(`「${entry.name}」を削除しますか？`)) deleteAnalysis(unit.id, entry.id);
+  };
+
+  const renderAnalysis = (entry: AnalysisEntry) => {
+    const accent = KIND_ACCENT[entry.kind];
+    const flow = entry.flowId ? flows.find((f) => f.id === entry.flowId) : null;
     const totalSteps = flow ? flow.steps.length : 0;
     const doneSteps = flow ? flow.steps.filter((s) => s.status === 'done').length : 0;
     return (
-      <button
-        className="card h-100 w-100 text-start p-0"
-        style={{ cursor: 'pointer', borderLeft: `4px solid ${accent}`, transition: 'box-shadow .15s, transform .1s', background: '#fff' }}
-        onClick={() => openPhase(phase)}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = ''; }}
-      >
-        <div className="card-body p-3">
-          <div className="d-flex align-items-center gap-2 mb-3">
-            <span
-              className="d-flex align-items-center justify-content-center rounded-2"
-              style={{ width: 38, height: 38, background: `${accent}18`, color: accent, flexShrink: 0 }}
-            >
-              <i className={`bi bi-${meta.icon}`} style={{ fontSize: '1.1rem' }} />
-            </span>
-            <span className="fw-semibold" style={{ fontSize: '1rem' }}>{meta.label}</span>
-            <span className={`badge ${STATUS_BADGE[ps.status]} ms-auto`}>{ps.status}</span>
-          </div>
-          <div className="d-flex flex-column gap-1 small">
-            <div className="d-flex align-items-center">
-              <span className="text-muted" style={{ width: 92 }}><i className="bi bi-sliders me-1" />条件設定</span>
-              {setBadge(!!ps.massCaseId)}<span className="text-muted ms-2">機体諸元</span>
+      <div key={entry.id} className="col-md-6">
+        <button
+          className="card h-100 w-100 text-start p-0"
+          style={{ cursor: 'pointer', borderLeft: `4px solid ${accent}`, transition: 'box-shadow .15s, transform .1s', background: '#fff' }}
+          onClick={() => openAnalysis(entry)}
+          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = ''; }}
+        >
+          <div className="card-body p-3">
+            <div className="d-flex align-items-center gap-2 mb-3">
+              <span className="d-flex align-items-center justify-content-center rounded-2" style={{ width: 38, height: 38, background: `${accent}18`, color: accent, flexShrink: 0 }}>
+                <i className={`bi bi-${entry.icon}`} style={{ fontSize: '1.1rem' }} />
+              </span>
+              <span className="fw-semibold" style={{ fontSize: '1rem' }}>{entry.name}</span>
+              <span className={`badge ${STATUS_BADGE[entry.status]} ms-auto`}>{entry.status}</span>
+              {entry.kind === 'custom' && (
+                <span
+                  role="button"
+                  className="text-danger p-1"
+                  title="この解析を削除"
+                  onClick={(e) => { e.stopPropagation(); removeAnalysis(entry); }}
+                >
+                  <i className="bi bi-trash" style={{ fontSize: '0.9rem' }} />
+                </span>
+              )}
             </div>
-            <div className="d-flex align-items-center">
-              <span className="text-muted" style={{ width: 92 }}><i className="bi bi-diagram-3 me-1" />解析フロー</span>
-              {ps.flowId
-                ? <>{setBadge(true)}<span className="text-muted ms-2">{doneSteps}/{totalSteps} ステップ完了</span></>
-                : setBadge(false)}
+            <div className="d-flex flex-column gap-1 small">
+              <div className="d-flex align-items-center">
+                <span className="text-muted" style={{ width: 92 }}><i className="bi bi-sliders me-1" />条件設定</span>
+                {setBadge(!!entry.massCaseId)}<span className="text-muted ms-2">機体諸元</span>
+              </div>
+              <div className="d-flex align-items-center">
+                <span className="text-muted" style={{ width: 92 }}><i className="bi bi-diagram-3 me-1" />解析フロー</span>
+                {entry.flowId
+                  ? <>{setBadge(true)}<span className="text-muted ms-2">{doneSteps}/{totalSteps} ステップ完了</span></>
+                  : setBadge(false)}
+              </div>
+            </div>
+            <div className="mt-3 fw-semibold small" style={{ color: accent }}>
+              {entry.name}を開く<i className="bi bi-arrow-right ms-1" />
             </div>
           </div>
-          <div className="mt-3 fw-semibold small" style={{ color: accent }}>
-            {meta.label}を開く<i className="bi bi-arrow-right ms-1" />
-          </div>
-        </div>
-      </button>
+        </button>
+      </div>
     );
   };
 
   return (
     <div>
-      {/* 号機の同一性・セクションタブは上部の号機ワークバー(PhaseWorkBar)が提供する */}
-
-      {/* 2フェーズのワークスペース */}
+      {/* 解析一覧（PT/FT はサンプル。任意の解析を追加できる） */}
+      <div className="d-flex align-items-center mb-2">
+        <span className="fw-semibold small"><i className="bi bi-clipboard-data me-1 text-primary" />この号機の解析</span>
+        <button className="btn btn-sm btn-outline-primary ms-auto py-0" onClick={addCustomAnalysis}>
+          <i className="bi bi-plus-lg me-1" />解析を追加
+        </button>
+      </div>
       <div className="row g-3 mb-3">
-        <div className="col-md-6">{renderPhase('PT')}</div>
-        <div className="col-md-6">{renderPhase('FT')}</div>
+        {unit.analyses.map(renderAnalysis)}
+        {unit.analyses.length === 0 && (
+          <div className="col-12">
+            <div className="card p-4 text-center text-muted">
+              <i className="bi bi-clipboard-plus fs-1 d-block mb-2 opacity-25" />
+              解析がありません。「解析を追加」で追加してください。
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 内閣府申請 */}

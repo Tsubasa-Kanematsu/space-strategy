@@ -5,8 +5,7 @@ import { useAppStore } from '../../stores/appStore';
 import { MASTER_CATEGORIES, useAllMasterOptions } from './masterCatalog';
 import { MassModel } from '../massCase/MassModel';
 import { ErrorSourceView } from '../rocketDb/ErrorSourceView';
-import { PHASE_META } from '../../types/vehicleUnit';
-import type { AnalysisPhase, VehicleUnit } from '../../types';
+import type { AnalysisEntry, VehicleUnit } from '../../types';
 
 /** 共通パラメータ行の定義。massCase 系（質量諸元・誤差源）とマスタ系を統一的に扱う。 */
 interface ParamRow {
@@ -24,15 +23,15 @@ interface ParamRow {
  * 各パラメータは「選択中のケース/項目名」を表示するだけ。右端の「変更」で
  * モーダルの一覧が開き、選択を変更する。質量諸元・誤差源もマスタデータ扱い。
  */
-export const CommonParams: React.FC<{ unit: VehicleUnit; phase: AnalysisPhase }> = ({ unit, phase }) => {
+export const CommonParams: React.FC<{ unit: VehicleUnit; entry: AnalysisEntry }> = ({ unit, entry }) => {
   const cases = useMassCaseStore((s) => s.cases);
   const addCase = useMassCaseStore((s) => s.addCase);
   const allComponents = useMassCaseStore((s) => s.components);
   const getComponentsForCase = useMassCaseStore((s) => s.getComponentsForCase);
-  const updatePhase = useVehicleUnitStore((s) => s.updatePhase);
+  const updateAnalysis = useVehicleUnitStore((s) => s.updateAnalysis);
   const optionsByKey = useAllMasterOptions();
 
-  const ps = phase === 'PT' ? unit.pt : unit.ft;
+  const ps = entry;
   const selections = ps.masterSelections ?? {};
   const massCaseId = ps.massCaseId ?? null;
 
@@ -76,9 +75,9 @@ export const CommonParams: React.FC<{ unit: VehicleUnit; phase: AnalysisPhase }>
   const ensureMassCase = (): string => {
     let mc = ps.massCaseId;
     if (!mc) {
-      const c = addCase({ projectId: unit.projectId, name: `${unit.unitNo}号機 ${PHASE_META[phase].label} 機体諸元`, memo: '', createdBy: '' });
+      const c = addCase({ projectId: unit.projectId, name: `${unit.unitNo}号機 ${entry.name} 機体諸元`, memo: '', createdBy: '' });
       mc = c.id;
-      updatePhase(unit.id, phase, { massCaseId: mc });
+      updateAnalysis(unit.id, entry.id, { massCaseId: mc });
     }
     return mc;
   };
@@ -88,7 +87,7 @@ export const CommonParams: React.FC<{ unit: VehicleUnit; phase: AnalysisPhase }>
     setPicker(null);
     setEditor(which);
   };
-  const selectCase = (id: string) => updatePhase(unit.id, phase, { massCaseId: id });
+  const selectCase = (id: string) => updateAnalysis(unit.id, entry.id, { massCaseId: id });
   const createCase = () => {
     const c = addCase({ projectId: "", name: `機体諸元 ${allCases.length + 1}`, memo: '', createdBy: '' });
     selectCase(c.id);
@@ -99,7 +98,7 @@ export const CommonParams: React.FC<{ unit: VehicleUnit; phase: AnalysisPhase }>
     const next = multi
       ? (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])
       : (cur.includes(id) ? [] : [id]);
-    updatePhase(unit.id, phase, { masterSelections: { ...selections, [key]: next } });
+    updateAnalysis(unit.id, entry.id, { masterSelections: { ...selections, [key]: next } });
   };
 
   const pickerRow = rows.find((r) => r.key === picker) ?? null;

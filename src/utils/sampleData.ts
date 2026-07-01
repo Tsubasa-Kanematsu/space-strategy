@@ -1152,8 +1152,10 @@ export function loadSampleData(): void {
     launchDate: '2026-09-15',
     status: '申請済み',
     requiredAnalyses: [...OPERATIONAL_SERVICES],
-    pt: { massCaseId: dId, status: '完了' },
-    ft: { status: '実施中' },
+    analyses: [
+      { name: 'PT解析', icon: 'clipboard-data', kind: 'PT', massCaseId: dId, status: '完了' },
+      { name: 'FT解析', icon: 'shield-check', kind: 'FT', status: '実施中' },
+    ],
     memo: '初号機。使い捨て型・最終設計確定 DB を基準。PT解析完了・申請提出済み。FT解析（飛行時）を実施中。',
   });
   const app1 = appStore.upsertForUnit(
@@ -1169,8 +1171,10 @@ export function loadSampleData(): void {
     launchDate: '2026-12-10',
     status: 'PT実施中',
     requiredAnalyses: [...OPERATIONAL_SERVICES],
-    pt: { massCaseId: dId, status: '実施中' },
-    ft: { status: '未着手' },
+    analyses: [
+      { name: 'PT解析', icon: 'clipboard-data', kind: 'PT', massCaseId: dId, status: '実施中' },
+      { name: 'FT解析', icon: 'shield-check', kind: 'FT', status: '未着手' },
+    ],
     memo: '相乗り2機。軌道投入条件を再設定し PT解析を実施中。',
   });
 
@@ -1182,8 +1186,10 @@ export function loadSampleData(): void {
     launchDate: '2027-03-20',
     status: '計画',
     requiredAnalyses: [...OPERATIONAL_SERVICES],
-    pt: { status: '未着手' },
-    ft: { status: '未着手' },
+    analyses: [
+      { name: 'PT解析', icon: 'clipboard-data', kind: 'PT', status: '未着手' },
+      { name: 'FT解析', icon: 'shield-check', kind: 'FT', status: '未着手' },
+    ],
     memo: 'ミッション定義中。PT解析 未着手。',
   });
 }

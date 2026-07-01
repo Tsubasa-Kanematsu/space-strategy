@@ -13,37 +13,35 @@ export const VEHICLE_UNIT_STATUSES: VehicleUnitStatus[] = [
   '計画', 'PT実施中', '申請済み', 'FT確認中', '打上可', '打上完了',
 ];
 
-/**
- * 解析フェーズ。1号機あたり PT・FT の2回実施する。
- * 各フェーズはそれぞれ独立した「機体諸元（DB）」と「解析パイプライン（解析フロー）」を持つ。
- */
-export type AnalysisPhase = 'PT' | 'FT';
-
-export const ANALYSIS_PHASES: AnalysisPhase[] = ['PT', 'FT'];
-
-export const PHASE_META: Record<AnalysisPhase, { label: string; icon: string }> = {
-  PT: { label: 'PT解析', icon: 'clipboard-data' },
-  FT: { label: 'FT解析', icon: 'shield-check' },
-};
-
-/** フェーズの進行状況 */
+/** 解析の進行状況 */
 export type PhaseStatus = '未着手' | '実施中' | '完了';
 export const PHASE_STATUSES: PhaseStatus[] = ['未着手', '実施中', '完了'];
 
-/** フェーズ1つ分の状態。機体諸元（DB）と解析パイプライン（フロー）を1つずつ持つ。 */
-export interface PhaseState {
-  /** このフェーズの機体諸元（massCase = DB）の ID */
-  massCaseId?: string;
-  /** このフェーズの解析パイプライン（解析フロー）の ID */
-  flowId?: string;
-  /** 共通パラメータ: マスタ種別ごとに選択したマスタ項目 ID（全解析共通） */
-  masterSelections?: Record<string, string[]>;
+/**
+ * 号機で実施する解析1件分。機体諸元（DB）と解析パイプライン（解析フロー）を1つずつ持つ。
+ * 従来は PT/FT の2フェーズ固定だったが、号機ごとに任意の解析を並べられるリストにした。
+ * PT解析・FT解析はサンプルとして既定で追加される。
+ */
+export interface AnalysisEntry {
+  id: string;
+  name: string;              // 例: 'PT解析', 'FT解析', '追加解析'
+  icon: string;              // bootstrap-icons 名
+  kind: 'PT' | 'FT' | 'custom';
+  massCaseId?: string;       // 機体諸元（massCase = DB）の ID
+  flowId?: string;           // 解析パイプライン（解析フロー）の ID
+  masterSelections?: Record<string, string[]>; // 共通パラメータ: マスタ選択
   status: PhaseStatus;
 }
 
+/** 号機に既定で追加される解析（サンプル）。 */
+export const DEFAULT_ANALYSES: Array<Pick<AnalysisEntry, 'name' | 'icon' | 'kind'>> = [
+  { name: 'PT解析', icon: 'clipboard-data', kind: 'PT' },
+  { name: 'FT解析', icon: 'shield-check', kind: 'FT' },
+];
+
 /**
- * 号機（フライト1機分）。PT・FT の2フェーズで解析を実施する。
- * 各フェーズが独立した機体諸元・解析パイプラインを持つ。
+ * 号機（フライト1機分）。任意の数の解析を並べて実施する。
+ * 各解析が独立した機体諸元・解析パイプラインを持つ。
  */
 export interface VehicleUnit {
   id: string;
@@ -57,21 +55,19 @@ export interface VehicleUnit {
   status: VehicleUnitStatus;
   /** このミッションで実施する解析項目（申請書に記載する解析の宣言） */
   requiredAnalyses: AnalysisServiceType[];
-  /** PT解析フェーズ */
-  pt: PhaseState;
-  /** FT解析フェーズ */
-  ft: PhaseState;
+  /** この号機で実施する解析の一覧（PT/FT はサンプル） */
+  analyses: AnalysisEntry[];
   memo?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-/** PT解析が完了したか（＝申請書を自動生成できる） */
-export function isPtComplete(u: Pick<VehicleUnit, 'pt'>): boolean {
-  return u.pt.status === '完了';
+/** 申請書の元になる解析（PT種別、無ければ先頭）を返す。 */
+export function primaryAnalysis(u: Pick<VehicleUnit, 'analyses'>): AnalysisEntry | undefined {
+  return u.analyses.find((a) => a.kind === 'PT') ?? u.analyses[0];
 }
 
-/** FT解析が完了したか */
-export function isFtComplete(u: Pick<VehicleUnit, 'ft'>): boolean {
-  return u.ft.status === '完了';
+/** 申請書を自動生成できるか（PT解析＝主解析が完了）。 */
+export function isPtComplete(u: Pick<VehicleUnit, 'analyses'>): boolean {
+  return primaryAnalysis(u)?.status === '完了';
 }

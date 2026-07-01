@@ -30,8 +30,9 @@ const ConditionCompare: React.FC<{ serviceType: AnalysisServiceType; currentCase
     const flow = flows.find((f) => f.steps.some((s) => s.analysisCaseId === caseId));
     let unitLabel: string | undefined;
     if (flow) {
-      const u = units.find((x) => x.pt.flowId === flow.id || x.ft.flowId === flow.id);
-      if (u) unitLabel = `${u.unitNo}号機 ${u.pt.flowId === flow.id ? 'PT' : 'FT'}`;
+      const u = units.find((x) => x.analyses.some((a) => a.flowId === flow.id));
+      const entry = u?.analyses.find((a) => a.flowId === flow.id);
+      if (u && entry) unitLabel = `${u.unitNo}号機 ${entry.name}`;
     }
     return [proj, unitLabel].filter(Boolean).join(' ／ ') || '（プロジェクト外）';
   };

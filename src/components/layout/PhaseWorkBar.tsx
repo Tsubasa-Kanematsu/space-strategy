@@ -30,9 +30,9 @@ export const PhaseWorkBar: React.FC = () => {
   if (onOverview && vehicleUnitId) {
     unit = units.find((u) => u.id === vehicleUnitId) ?? null;
   } else if (onConditions && massCaseId) {
-    unit = units.find((u) => u.pt.massCaseId === massCaseId || u.ft.massCaseId === massCaseId) ?? null;
+    unit = units.find((u) => u.analyses.some((a) => a.massCaseId === massCaseId)) ?? null;
   } else if (onFlow && analysisFlowId) {
-    unit = units.find((u) => u.pt.flowId === analysisFlowId || u.ft.flowId === analysisFlowId) ?? null;
+    unit = units.find((u) => u.analyses.some((a) => a.flowId === analysisFlowId)) ?? null;
   }
   if (!unit) return null;
   const u = unit;

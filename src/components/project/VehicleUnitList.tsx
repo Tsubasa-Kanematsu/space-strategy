@@ -6,7 +6,7 @@ import { useApplicationStore } from '../../stores/applicationStore';
 import { DeleteConfirmModal } from '../common/DeleteConfirmModal';
 import { ALL_SERVICES, SERVICE_META } from '../analysis/analysisServiceMeta';
 import { useFlags } from '../../stores/featureFlagsStore';
-import { VEHICLE_UNIT_STATUSES } from '../../types/vehicleUnit';
+import { VEHICLE_UNIT_STATUSES, isPtComplete } from '../../types/vehicleUnit';
 import type { AnalysisServiceType, PhaseStatus, VehicleUnit, VehicleUnitStatus } from '../../types';
 
 const STATUS_COLOR: Record<VehicleUnitStatus, string> = {
@@ -115,8 +115,7 @@ export const VehicleUnitList: React.FC = () => {
         status: form.status,
         memo: form.memo,
         requiredAnalyses: form.requiredAnalyses,
-        pt: { status: '未着手' },
-        ft: { status: '未着手' },
+        // analyses は省略 → PT/FT がサンプルとして既定追加される
       });
     }
     setShowModal(false);
@@ -169,8 +168,7 @@ export const VehicleUnitList: React.FC = () => {
                 <th>ミッション名</th>
                 <th style={{ width: 120 }}>打上予定日</th>
                 <th style={{ width: 110 }}>ステータス</th>
-                <th style={{ width: 110 }}><i className="bi bi-clipboard-data me-1" />PT解析</th>
-                <th style={{ width: 110 }}><i className="bi bi-shield-check me-1" />FT解析</th>
+                <th style={{ minWidth: 200 }}><i className="bi bi-clipboard-data me-1" />解析</th>
                 <th style={{ width: 110 }}>申請書</th>
                 <th className="col-actions">操作</th>
               </tr>
@@ -200,14 +198,22 @@ export const VehicleUnitList: React.FC = () => {
                       <td>{u.missionName}</td>
                       <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{u.launchDate || '—'}</td>
                       <td><span className={`badge bg-${STATUS_COLOR[u.status]}`}>{u.status}</span></td>
-                      <td><span className={`badge ${PHASE_BADGE[u.pt.status]}`}>{u.pt.status}</span></td>
-                      <td><span className={`badge ${PHASE_BADGE[u.ft.status]}`}>{u.ft.status}</span></td>
+                      <td>
+                        <div className="d-flex flex-wrap gap-1">
+                          {u.analyses.map((a) => (
+                            <span key={a.id} className={`badge ${PHASE_BADGE[a.status]}`} title={`${a.name}: ${a.status}`}>
+                              {a.name}
+                            </span>
+                          ))}
+                          {u.analyses.length === 0 && <span className="text-muted small">—</span>}
+                        </div>
+                      </td>
                       <td>
                         {app ? (
                           <span className={`badge bg-${app.status === '提出済み' || app.status === '受理' ? 'success' : 'primary'}`}>
                             {app.status}
                           </span>
-                        ) : u.pt.status === '完了' ? (
+                        ) : isPtComplete(u) ? (
                           <span className="badge bg-warning">生成可</span>
                         ) : (
                           <span className="text-muted small">—</span>

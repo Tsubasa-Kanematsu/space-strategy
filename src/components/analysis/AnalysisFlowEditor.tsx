@@ -4,7 +4,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { CommonParams } from './CommonParams';
 import { AnalysisConditionsSection } from './AnalysisConditionsSection';
-import type { AnalysisFlow } from '../../types';
+import type { AnalysisFlow, AnalysisEntry } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
 import { BUILTIN_FLOW_TEMPLATES, customToFlowTemplate, resolveSeedFromLabel, type FlowTemplate } from './flow/flowTemplates';
@@ -194,7 +194,8 @@ const FlowCard: React.FC<{
  * 一覧画面 (AnalysisFlowList) からクリックして遷移する想定。
  */
 /** フェーズページ「結果」タブ: 解析ステップの進捗一覧＋ドメイン注記。 */
-const PhaseResults: React.FC<{ flow: AnalysisFlow; phase: 'PT' | 'FT'; onGoExecution: () => void }> = ({ flow, phase, onGoExecution }) => {
+const PhaseResults: React.FC<{ flow: AnalysisFlow; entry: AnalysisEntry; onGoExecution: () => void }> = ({ flow, entry, onGoExecution }) => {
+  const phase = entry.kind;
   const steps = [...flow.steps].sort((a, b) => a.order - b.order);
   const total = steps.length;
   const done = steps.filter((s) => s.status === 'done').length;
@@ -238,9 +239,11 @@ const PhaseResults: React.FC<{ flow: AnalysisFlow; phase: 'PT' | 'FT'; onGoExecu
           ? (allDone
               ? 'PT解析（計画時）が完了しました。この結果を内閣府申請書に用います。'
               : 'PT解析（計画時）の結果です。全ステップ完了で申請に使用できます。')
-          : (allDone
-              ? 'FT解析（飛行時）が完了しました。PT解析の想定に包含されているか確認します。'
-              : 'FT解析（飛行時）の結果です。PT解析への包含を確認します。')}
+          : phase === 'FT'
+            ? (allDone
+                ? 'FT解析（飛行時）が完了しました。PT解析の想定に包含されているか確認します。'
+                : 'FT解析（飛行時）の結果です。PT解析への包含を確認します。')
+            : (allDone ? 'この解析が完了しました。' : 'この解析の結果です。')}
       </div>
     </div>
   );
@@ -255,10 +258,8 @@ export const AnalysisFlowEditor: React.FC = () => {
 
   const flow = analysisFlowId ? flows.find((f) => f.id === analysisFlowId) : null;
   // このフローを所有する号機（PT/FT）。あれば共通パラメータ（マスタ/機体諸元）を上部に出す。
-  const ownerUnit = flow ? units.find((u) => u.pt.flowId === flow.id || u.ft.flowId === flow.id) ?? null : null;
-  const ownerPhase: 'PT' | 'FT' | null = ownerUnit && flow
-    ? (ownerUnit.pt.flowId === flow.id ? 'PT' : 'FT')
-    : null;
+  const ownerUnit = flow ? units.find((u) => u.analyses.some((a) => a.flowId === flow.id)) ?? null : null;
+  const ownerEntry = ownerUnit && flow ? ownerUnit.analyses.find((a) => a.flowId === flow.id) ?? null : null;
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
@@ -334,9 +335,9 @@ export const AnalysisFlowEditor: React.FC = () => {
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-      {ownerUnit && ownerPhase ? (
+      {ownerUnit && ownerEntry ? (
         <>
-          {/* フェーズページの3タブ */}
+          {/* 解析ページの3タブ */}
           <div className="d-flex align-items-center border-bottom mb-3" style={{ gap: 2 }}>
             {phaseTabBtn('conditions', '条件設定', 'sliders')}
             {phaseTabBtn('execution', '実行管理', 'diagram-3')}
@@ -345,8 +346,8 @@ export const AnalysisFlowEditor: React.FC = () => {
 
           {phaseTab === 'conditions' && (
             <>
-              <CommonParams unit={ownerUnit} phase={ownerPhase} />
-              <AnalysisConditionsSection flow={flow} massCaseId={(ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft).massCaseId ?? null} />
+              <CommonParams unit={ownerUnit} entry={ownerEntry} />
+              <AnalysisConditionsSection flow={flow} massCaseId={ownerEntry.massCaseId ?? null} />
             </>
           )}
 
@@ -358,7 +359,7 @@ export const AnalysisFlowEditor: React.FC = () => {
           )}
 
           {phaseTab === 'results' && (
-            <PhaseResults flow={flow} phase={ownerPhase} onGoExecution={() => setPhaseTab('execution')} />
+            <PhaseResults flow={flow} entry={ownerEntry} onGoExecution={() => setPhaseTab('execution')} />
           )}
         </>
       ) : (
