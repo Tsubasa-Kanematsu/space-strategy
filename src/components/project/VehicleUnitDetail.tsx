@@ -86,55 +86,42 @@ export const VehicleUnitDetail: React.FC = () => {
     if (window.confirm(`「${entry.name}」を削除しますか？`)) deleteAnalysis(unit.id, entry.id);
   };
 
-  const renderAnalysis = (entry: AnalysisEntry) => {
+  const renderAnalysis = (entry: AnalysisEntry, i: number, arr: AnalysisEntry[]) => {
     const accent = KIND_ACCENT[entry.kind];
     const flow = entry.flowId ? flows.find((f) => f.id === entry.flowId) : null;
     const totalSteps = flow ? flow.steps.length : 0;
     const doneSteps = flow ? flow.steps.filter((s) => s.status === 'done').length : 0;
     return (
-      <div key={entry.id} className="col-md-6">
-        <button
-          className="card h-100 w-100 text-start p-0"
-          style={{ cursor: 'pointer', borderLeft: `4px solid ${accent}`, transition: 'box-shadow .15s, transform .1s', background: '#fff' }}
-          onClick={() => openAnalysis(entry)}
-          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = ''; }}
-        >
-          <div className="card-body p-3">
-            <div className="d-flex align-items-center gap-2 mb-3">
-              <span className="d-flex align-items-center justify-content-center rounded-2" style={{ width: 38, height: 38, background: `${accent}18`, color: accent, flexShrink: 0 }}>
-                <i className={`bi bi-${entry.icon}`} style={{ fontSize: '1.1rem' }} />
-              </span>
-              <span className="fw-semibold" style={{ fontSize: '1rem' }}>{entry.name}</span>
-              <span className={`badge ${STATUS_BADGE[entry.status]} ms-auto`}>{entry.status}</span>
-              {entry.kind === 'custom' && (
-                <span
-                  role="button"
-                  className="text-danger p-1"
-                  title="この解析を削除"
-                  onClick={(e) => { e.stopPropagation(); removeAnalysis(entry); }}
-                >
-                  <i className="bi bi-trash" style={{ fontSize: '0.9rem' }} />
-                </span>
-              )}
-            </div>
-            <div className="d-flex flex-column gap-1 small">
-              <div className="d-flex align-items-center">
-                <span className="text-muted" style={{ width: 92 }}><i className="bi bi-sliders me-1" />条件設定</span>
-                {setBadge(!!entry.massCaseId)}<span className="text-muted ms-2">機体諸元</span>
-              </div>
-              <div className="d-flex align-items-center">
-                <span className="text-muted" style={{ width: 92 }}><i className="bi bi-diagram-3 me-1" />解析フロー</span>
-                {entry.flowId
-                  ? <>{setBadge(true)}<span className="text-muted ms-2">{doneSteps}/{totalSteps} ステップ完了</span></>
-                  : setBadge(false)}
-              </div>
-            </div>
-            <div className="mt-3 fw-semibold small" style={{ color: accent }}>
-              {entry.name}を開く<i className="bi bi-arrow-right ms-1" />
-            </div>
-          </div>
-        </button>
+      <div
+        key={entry.id}
+        className={`d-flex align-items-center px-3 py-2 ${i < arr.length - 1 ? 'border-bottom' : ''}`}
+        style={{ cursor: 'pointer' }}
+        onClick={() => openAnalysis(entry)}
+        onMouseEnter={(e) => { e.currentTarget.style.background = '#f6f9ff'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
+      >
+        <span className="d-flex align-items-center justify-content-center rounded-2" style={{ width: 30, height: 30, background: `${accent}18`, color: accent, flexShrink: 0 }}>
+          <i className={`bi bi-${entry.icon}`} style={{ fontSize: '0.95rem' }} />
+        </span>
+        <span className="fw-semibold ms-2" style={{ minWidth: 120 }}>{entry.name}</span>
+        <span className={`badge ${STATUS_BADGE[entry.status]} ms-2`}>{entry.status}</span>
+
+        <span className="ms-4 small text-muted d-none d-lg-flex align-items-center gap-3">
+          <span><i className="bi bi-sliders me-1" />条件設定 {setBadge(!!entry.massCaseId)}</span>
+          <span>
+            <i className="bi bi-diagram-3 me-1" />解析フロー{' '}
+            {entry.flowId ? <span className="text-body">{doneSteps}/{totalSteps} 完了</span> : setBadge(false)}
+          </span>
+        </span>
+
+        <span className="ms-auto d-flex align-items-center gap-2">
+          {entry.kind === 'custom' && (
+            <button className="btn btn-sm btn-link text-danger p-1" title="この解析を削除" onClick={(e) => { e.stopPropagation(); removeAnalysis(entry); }}>
+              <i className="bi bi-trash" />
+            </button>
+          )}
+          <span className="fw-semibold small" style={{ color: accent }}>開く<i className="bi bi-arrow-right ms-1" /></span>
+        </span>
       </div>
     );
   };
@@ -148,14 +135,12 @@ export const VehicleUnitDetail: React.FC = () => {
           <i className="bi bi-plus-lg me-1" />解析を追加
         </button>
       </div>
-      <div className="row g-3 mb-3">
+      <div className="border rounded-3 mb-3">
         {unit.analyses.map(renderAnalysis)}
         {unit.analyses.length === 0 && (
-          <div className="col-12">
-            <div className="card p-4 text-center text-muted">
-              <i className="bi bi-clipboard-plus fs-1 d-block mb-2 opacity-25" />
-              解析がありません。「解析を追加」で追加してください。
-            </div>
+          <div className="p-4 text-center text-muted">
+            <i className="bi bi-clipboard-plus fs-1 d-block mb-2 opacity-25" />
+            解析がありません。「解析を追加」で追加してください。
           </div>
         )}
       </div>
