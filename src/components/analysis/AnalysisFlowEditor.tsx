@@ -3,6 +3,7 @@ import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { CommonParams } from './CommonParams';
+import { AnalysisConditionsSection } from './AnalysisConditionsSection';
 import type { AnalysisFlow } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -342,7 +343,12 @@ export const AnalysisFlowEditor: React.FC = () => {
             {phaseTabBtn('results', '結果', 'graph-up')}
           </div>
 
-          {phaseTab === 'conditions' && <CommonParams unit={ownerUnit} phase={ownerPhase} />}
+          {phaseTab === 'conditions' && (
+            <>
+              <CommonParams unit={ownerUnit} phase={ownerPhase} />
+              <AnalysisConditionsSection flow={flow} massCaseId={(ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft).massCaseId ?? null} />
+            </>
+          )}
 
           {phaseTab === 'execution' && (
             <>
