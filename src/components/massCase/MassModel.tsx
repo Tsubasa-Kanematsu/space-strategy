@@ -586,7 +586,7 @@ const ComponentRowInner: React.FC<RowProps> = ({
         {(() => {
           const isReadOnly = !!(linkColor && !comp.isLinkMaster);
           const valueDisplay = comp.inputType === 'aggregate'
-            ? <span className="text-muted fst-italic" style={{ fontSize: '0.78rem' }}>—</span>
+            ? null
             : comp.valueOrFormula
               ? <span className="font-monospace text-truncate" style={{ fontSize: '0.82rem', color: '#374151', maxWidth: 180 }}>{comp.valueOrFormula}</span>
               : <span className="text-muted fst-italic" style={{ fontSize: '0.78rem' }}>値未入力</span>;
@@ -620,14 +620,11 @@ const ComponentRowInner: React.FC<RowProps> = ({
                   </span>
                   {valueDisplay}
                 </span>
-                {/* 下段: 計算結果(配分質量) — 左寄せの = 付き表示。読み取り専用 */}
-                <div
-                  className="d-flex align-items-center justify-content-start gap-1 font-monospace"
-                  style={{ fontSize: '0.78rem', color: '#6b7280' }}
-                >
+                {/* 下段: 計算結果(配分質量) — 太字で主表示。読み取り専用 */}
+                <div className="font-monospace fw-semibold" style={{ fontSize: '0.9rem', color: '#111827' }}>
                   {alloc != null
-                    ? <span><span className="text-muted me-1">=</span>{alloc.toFixed(2)} kg</span>
-                    : <span className="text-muted">— kg</span>}
+                    ? `${alloc.toFixed(2)} kg`
+                    : <span className="text-muted fw-normal">— kg</span>}
                 </div>
               </div>
             </td>
@@ -715,6 +712,41 @@ const ComponentRowInner: React.FC<RowProps> = ({
                 </div>
               )}
             </td>
+          );
+        })()}
+        {/* 重心・慣性テンソル(コンパクト表示 — クリックで編集モーダル。質量と統合) */}
+        {(() => {
+          const effectiveMode: 'aggregate' | 'manual' = hasChildren ? (comp.cgInertiaMode ?? 'aggregate') : 'manual';
+          const isAggregate = effectiveMode === 'aggregate';
+          const cg = isAggregate ? aggregatedCG : { x: comp.cgX ?? null, y: comp.cgY ?? null, z: comp.cgZ ?? null };
+          const inertia = isAggregate ? aggregatedInertia : { ixx: comp.ixx ?? null, iyy: comp.iyy ?? null, izz: comp.izz ?? null };
+          const isCloneReadOnly = !!(linkColor && !comp.isLinkMaster);
+          const fmt = (v: number | null | undefined) => (v != null ? v.toFixed(2) : '—');
+          const hasCg = !!cg && (cg.x != null || cg.y != null || cg.z != null);
+          const hasInertia = !!inertia && (inertia.ixx != null || inertia.iyy != null || inertia.izz != null);
+          const wrap = (node: React.ReactNode) => isCloneReadOnly ? node : (
+            <span className="editable-cell mm-group-cginertia" onClick={onOpenCgInertiaEdit} title="クリックで重心・慣性テンソルを編集">{node}</span>
+          );
+          return (
+            <>
+              <td>
+                {wrap(
+                  <span className="d-inline-flex align-items-center gap-1">
+                    {isAggregate && <span className="badge bg-secondary-subtle text-secondary border" style={{ fontSize: '0.6rem' }}>集計</span>}
+                    {hasCg
+                      ? <span className="font-monospace" style={{ fontSize: '0.8rem', color: '#374151' }}>{fmt(cg!.x)} / {fmt(cg!.y)} / {fmt(cg!.z)}</span>
+                      : <span className="text-muted fst-italic" style={{ fontSize: '0.76rem' }}>未設定</span>}
+                  </span>
+                )}
+              </td>
+              <td>
+                {wrap(
+                  hasInertia
+                    ? <span className="font-monospace text-muted" style={{ fontSize: '0.74rem' }}>Ixx {fmt(inertia!.ixx)}</span>
+                    : <span className="text-muted fst-italic" style={{ fontSize: '0.76rem' }}>未設定</span>
+                )}
+              </td>
+            </>
           );
         })()}
       </>}
@@ -2421,9 +2453,8 @@ export const MassModel: React.FC = () => {
           <span className="text-muted fw-semibold">表示データ</span>
           <div className="btn-group btn-group-sm" role="group">
             {([
-              { id: 'mass',      label: '質量',             icon: 'graph-up' },
-              { id: 'cginertia', label: '重心・慣性テンソル', icon: 'crosshair' },
-              { id: 'errorsource', label: '誤差源',         icon: 'exclamation-diamond' },
+              { id: 'mass',        label: '諸元',   icon: 'box-seam' },
+              { id: 'errorsource', label: '誤差源', icon: 'exclamation-diamond' },
             ] as { id: DataView; label: string; icon: string }[]).map((opt) => (
               <button
                 key={opt.id}
@@ -2593,8 +2624,10 @@ export const MassModel: React.FC = () => {
                 <th style={{ width: 72 }}>段</th>
                 <th style={{ width: 110 }}>タグ</th>
                 {dataView === 'mass' && <>
-                  <th style={{ minWidth: 240 }}>システム配分値 (kg)</th>
+                  <th style={{ minWidth: 200 }}>質量 (kg)</th>
                   <th className="text-end" style={{ minWidth: 100 }}>実質量 (kg)</th>
+                  <th style={{ minWidth: 140 }}>重心 X/Y/Z (m)</th>
+                  <th style={{ minWidth: 110 }}>慣性テンソル</th>
                 </>}
                 {dataView === 'cginertia' && <>
                   <th style={{ minWidth: 60 }}>座標系</th>
