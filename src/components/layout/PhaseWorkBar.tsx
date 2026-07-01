@@ -90,16 +90,8 @@ export const PhaseWorkBar: React.FC = () => {
 
   return (
     <div style={{ background: '#fff', borderBottom: '1px solid #e4e9ef' }}>
-      {/* 1段目: 号機の同一性 */}
+      {/* 1段目: 号機の同一性（見出し）。パス移動は上部パンくずに集約（戻りリンクは重複するため置かない）。 */}
       <div className="d-flex align-items-center gap-3 flex-wrap" style={{ padding: '8px 16px 4px' }}>
-        <button
-          className="btn btn-link btn-sm p-0 text-muted"
-          style={{ textDecoration: 'none', fontSize: '0.8rem' }}
-          onClick={() => navigate('vehicleUnits', { projectId: u.projectId })}
-          title="号機一覧へ"
-        >
-          <i className="bi bi-arrow-left me-1" />号機一覧
-        </button>
         <span className="fw-bold" style={{ fontSize: '1rem' }}>
           <i className="bi bi-rocket-takeoff me-2 text-primary" />
           {u.unitNo}号機 — {u.missionName}
