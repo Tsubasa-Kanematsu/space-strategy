@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
@@ -23,7 +23,7 @@ export const VehicleUnitDetail: React.FC = () => {
   const vehicleUnitId = useAppStore((s) => s.vehicleUnitId);
   const navigate = useAppStore((s) => s.navigate);
   const getProject = useProjectStore((s) => s.getProject);
-  const getUnit = useVehicleUnitStore((s) => s.getUnit);
+  const units = useVehicleUnitStore((s) => s.units);
   const updateAnalysis = useVehicleUnitStore((s) => s.updateAnalysis);
   const addAnalysis = useVehicleUnitStore((s) => s.addAnalysis);
   const deleteAnalysis = useVehicleUnitStore((s) => s.deleteAnalysis);
@@ -31,8 +31,9 @@ export const VehicleUnitDetail: React.FC = () => {
   const upsertForUnit = useApplicationStore((s) => s.upsertForUnit);
   const flows = useAnalysisFlowStore((s) => s.flows);
   const addFlow = useAnalysisFlowStore((s) => s.addFlow);
+  const [addName, setAddName] = useState<string | null>(null); // null=閉, string=追加モーダルの下書き
 
-  const unit = vehicleUnitId ? getUnit(vehicleUnitId) : undefined;
+  const unit = vehicleUnitId ? units.find((u) => u.id === vehicleUnitId) : undefined;
 
   if (!unit || !projectId) {
     return (
@@ -76,10 +77,11 @@ export const VehicleUnitDetail: React.FC = () => {
     navigate('analysisFlowDetail', { analysisFlowId: fid, projectId: unit.projectId });
   };
 
-  const addCustomAnalysis = () => {
-    const name = window.prompt('追加する解析の名称を入力してください', '追加解析');
-    if (!name || !name.trim()) return;
-    addAnalysis(unit.id, { name: name.trim(), icon: 'graph-up', kind: 'custom', status: '未着手' });
+  const confirmAddAnalysis = () => {
+    const name = (addName ?? '').trim();
+    if (!name) return;
+    addAnalysis(unit.id, { name, icon: 'graph-up', kind: 'custom', status: '未着手' });
+    setAddName(null);
   };
 
   const removeAnalysis = (entry: AnalysisEntry) => {
@@ -131,7 +133,7 @@ export const VehicleUnitDetail: React.FC = () => {
       {/* 解析一覧（PT/FT はサンプル。任意の解析を追加できる） */}
       <div className="d-flex align-items-center mb-2">
         <span className="fw-semibold small"><i className="bi bi-clipboard-data me-1 text-primary" />この号機の解析</span>
-        <button className="btn btn-sm btn-outline-primary ms-auto py-0" onClick={addCustomAnalysis}>
+        <button className="btn btn-sm btn-outline-primary ms-auto py-0" onClick={() => setAddName('追加解析')}>
           <i className="bi bi-plus-lg me-1" />解析を追加
         </button>
       </div>
@@ -175,6 +177,35 @@ export const VehicleUnitDetail: React.FC = () => {
           <div className="card-header fw-semibold"><i className="bi bi-journal-text me-1" />メモ</div>
           <div className="card-body">
             <p className="mb-0 small text-muted" style={{ whiteSpace: 'pre-wrap' }}>{unit.memo}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 解析を追加モーダル */}
+      {addName !== null && (
+        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setAddName(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header py-2">
+                <h6 className="modal-title"><i className="bi bi-plus-lg me-2 text-primary" />解析を追加</h6>
+                <button className="btn-close" onClick={() => setAddName(null)} />
+              </div>
+              <div className="modal-body">
+                <label className="form-label small fw-medium mb-1">解析の名称</label>
+                <input
+                  className="form-control form-control-sm"
+                  value={addName}
+                  autoFocus
+                  onChange={(e) => setAddName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') confirmAddAnalysis(); if (e.key === 'Escape') setAddName(null); }}
+                  placeholder="例: 追加解析 / 再突入解析"
+                />
+              </div>
+              <div className="modal-footer py-2">
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => setAddName(null)}>キャンセル</button>
+                <button className="btn btn-sm btn-primary" disabled={!addName.trim()} onClick={confirmAddAnalysis}>追加</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
