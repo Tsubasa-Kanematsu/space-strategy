@@ -31,6 +31,19 @@ export const AnalysisPalette: React.FC = () => {
             {SERVICE_META[svc].label}
           </div>
         ))}
+        {/* カスタム解析（サービス種別なし。名前・メモで管理） */}
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('application/analysis-service', 'custom');
+            e.dataTransfer.effectAllowed = 'move';
+          }}
+          className="d-inline-flex align-items-center border rounded-2 px-2 py-1 small bg-white"
+          style={{ cursor: 'grab', userSelect: 'none', borderStyle: 'dashed' }}
+          title="カスタム解析をドラッグして追加"
+        >
+          <i className="bi bi-puzzle me-1 text-secondary" />カスタム解析
+        </div>
       </div>
     </div>
   );

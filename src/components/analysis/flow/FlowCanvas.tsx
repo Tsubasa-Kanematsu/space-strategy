@@ -213,18 +213,20 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
   }, []);
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const svc = e.dataTransfer.getData('application/analysis-service') as AnalysisServiceType;
+    const svc = e.dataTransfer.getData('application/analysis-service');
     if (!svc || !rfInstance) return;
     const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    const isCustom = svc === 'custom';
     addStep(flow.id, {
       order: flow.steps.length,
-      label: SERVICE_META[svc]?.label ?? svc,
+      label: isCustom ? 'カスタム解析' : (SERVICE_META[svc as AnalysisServiceType]?.label ?? svc),
       kind: 'normal',
+      isCustom: isCustom || undefined,
       status: 'pending',
       notes: '',
       dataBindings: [],
       position,
-    }, null);
+    }, null); // 自動接続しない（ユーザーが手動で線を繋ぐ）
   }, [rfInstance, flow.id, flow.steps.length, addStep]);
 
   // ── 右クリック: ノード上で「後段に追加 / 並列に追加 / 削除」 ─────────────

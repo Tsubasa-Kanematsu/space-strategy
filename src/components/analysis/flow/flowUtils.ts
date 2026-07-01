@@ -162,6 +162,9 @@ export function stepsToNodes(
     if (isDecision) {
       iconName = 'question-diamond';
       subtitle = '判定';
+    } else if (step.isCustom) {
+      iconName = 'puzzle';
+      subtitle = 'カスタム解析';
     } else if (linkedType === 'analysis') {
       const svc = step.analysisCaseId ? svcMap?.get(step.analysisCaseId) : undefined;
       iconName = (svc && SERVICE_META[svc]?.icon) || 'cpu';

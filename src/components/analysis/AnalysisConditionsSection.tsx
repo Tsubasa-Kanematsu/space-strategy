@@ -7,6 +7,7 @@ import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { SERVICE_META } from './analysisServiceMeta';
 import { resolveSeedFromLabel } from './flow/flowTemplates';
 import { AnalysisConditionView } from './AnalysisConditionView';
+import { ensureAnalysisCaseForStep } from './analysisCaseSetup';
 import type { AnalysisFlow, AnalysisServiceType } from '../../types';
 
 const fmtVal = (v: unknown): string => {
@@ -151,40 +152,52 @@ const ParamAnnotations: React.FC<{ caseId: string }> = ({ caseId }) => {
 /** 解析フローのノードから開く条件モーダル（条件入力／比較／メモ・エビデンス）。 */
 export const AnalysisConditionModal: React.FC<{ flow: AnalysisFlow; stepId: string; massCaseId: string | null; onClose: () => void }> = ({ flow, stepId, massCaseId, onClose }) => {
   const cases = useAnalysisStore((s) => s.cases);
-  const addCase = useAnalysisStore((s) => s.addCase);
   const updateCase = useAnalysisStore((s) => s.updateCase);
   const updateStep = useAnalysisFlowStore((s) => s.updateStep);
+  const flowsLive = useAnalysisFlowStore((s) => s.flows);
   const [condTab, setCondTab] = useState<'input' | 'compare' | 'notes'>('input');
   const [caseId, setCaseId] = useState<string | null>(null);
 
-  const step = flow.steps.find((s) => s.id === stepId) ?? null;
+  const flowLive = flowsLive.find((f) => f.id === flow.id) ?? flow;
+  const step = flowLive.steps.find((s) => s.id === stepId) ?? null;
+  const isCustom = !!step?.isCustom;
   const existingCase = step?.analysisCaseId ? cases.find((c) => c.id === step.analysisCaseId) : null;
-  const seed = existingCase ? null : (step ? resolveSeedFromLabel(step.label) : null);
+  const seed = existingCase || isCustom ? null : (step ? resolveSeedFromLabel(step.label) : null);
   const service: AnalysisServiceType | null = existingCase
     ? existingCase.serviceType
     : (seed && seed.kind === 'analysis' ? seed.service : null);
 
-  // 解析ステップなら条件ケースを用意（無ければ作成）。開いたステップが変わるたびに解決。
+  // 解析ステップなら条件ケースを用意（上流連結込み）。開いたステップが変わるたびに解決。
   useEffect(() => {
-    if (!step || !service) { setCaseId(null); return; }
-    if (step.analysisCaseId) { setCaseId(step.analysisCaseId); return; }
-    const ac = addCase({ serviceType: service, projectId: flow.projectId, massCaseId: massCaseId ?? '', name: SERVICE_META[service].label, memo: '', createdBy: '', upstreamCaseId: '', condition: {} });
-    updateStep(flow.id, step.id, { analysisCaseId: ac.id, label: ac.name });
-    setCaseId(ac.id);
+    if (isCustom) { setCaseId(null); return; }
+    setCaseId(ensureAnalysisCaseForStep(flow.id, stepId, massCaseId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepId]);
 
-  const title = service ? SERVICE_META[service].label : (step?.label ?? 'ステップ');
+  const title = isCustom ? (step?.label || 'カスタム解析') : (service ? SERVICE_META[service].label : (step?.label ?? 'ステップ'));
 
   return (
     <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
       <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">
           <div className="modal-header py-2">
-            <h6 className="modal-title"><i className="bi bi-ui-checks me-2 text-primary" />{title} の条件</h6>
+            <h6 className="modal-title">
+              <i className={`bi ${isCustom ? 'bi-puzzle' : 'bi-ui-checks'} me-2 text-primary`} />{title}{isCustom ? '' : ' の条件'}
+            </h6>
             <button className="btn-close" onClick={onClose} />
           </div>
-          {service && caseId ? (
+          {isCustom && step ? (
+            /* カスタム解析: 名前・メモを設定（サービス種別なし） */
+            <div className="modal-body">
+              <p className="text-muted small mb-3">カスタム解析ステップです。名称と内容メモを設定できます（サービス固有の条件はありません）。</p>
+              <label className="form-label small fw-medium mb-1">解析名</label>
+              <input className="form-control form-control-sm mb-3" value={step.label}
+                onChange={(e) => updateStep(flow.id, step.id, { label: e.target.value })} />
+              <label className="form-label small fw-medium mb-1">内容メモ（手順・想定・エビデンス等）</label>
+              <textarea className="form-control form-control-sm" rows={5} value={step.notes}
+                onChange={(e) => updateStep(flow.id, step.id, { notes: e.target.value })} />
+            </div>
+          ) : service && caseId ? (
             <>
               <div className="d-flex border-bottom px-2" style={{ gap: 2 }}>
                 {([['input', '条件入力', 'sliders'], ['compare', '比較', 'columns-gap'], ['notes', 'メモ・エビデンス', 'journal-text']] as const).map(([id, label, icon]) => (

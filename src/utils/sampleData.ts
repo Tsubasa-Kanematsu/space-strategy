@@ -22,6 +22,9 @@ import { useAnalysisStore } from '../stores/analysisStore';
 import { useMasterDataStore } from '../stores/masterDataStore';
 import { useVehicleUnitStore } from '../stores/vehicleUnitStore';
 import { useApplicationStore } from '../stores/applicationStore';
+import { useAnalysisFlowStore } from '../stores/analysisFlowStore';
+import { BUILTIN_FLOW_TEMPLATES, PT_TEMPLATE_KEY } from '../components/analysis/flow/flowTemplates';
+import { ensureAnalysisCaseForStep } from '../components/analysis/analysisCaseSetup';
 import { buildApplicationData } from './applicationGen';
 import type { AnalysisServiceType } from '../types';
 
@@ -39,6 +42,7 @@ export function loadSampleData(): void {
   const masterStore   = useMasterDataStore.getState();
   const unitStore     = useVehicleUnitStore.getState();
   const appStore      = useApplicationStore.getState();
+  const flowStore     = useAnalysisFlowStore.getState();
 
   // 解析結果一括登録ヘルパー
   const addResults = (caseId: string, rows: [string, string, string, string][]) => {
@@ -1158,6 +1162,17 @@ export function loadSampleData(): void {
     ],
     memo: '初号機。使い捨て型・最終設計確定 DB を基準。PT解析完了・申請提出済み。FT解析（飛行時）を実施中。',
   });
+  // 1号機 PT解析: 解析フローを作成し、上流連結込みで解析ケースを用意（完了サンプル）
+  const ptTpl = BUILTIN_FLOW_TEMPLATES.find((t) => t.key === PT_TEMPLATE_KEY);
+  if (ptTpl) {
+    const ptFlow = flowStore.addFlow({ projectId: pid, name: '1号機 PT解析 解析フロー', steps: ptTpl.build() });
+    unitStore.updateAnalysis(unit1.id, unit1.analyses[0].id, { flowId: ptFlow.id });
+    // SERVICE_UPSTREAM に沿って上流ケースを連結しながら各解析ケースを作成
+    ptFlow.steps.forEach((s) => ensureAnalysisCaseForStep(ptFlow.id, s.id, dId));
+    // 完了サンプルなので全ステップを done に
+    ptFlow.steps.forEach((s) => flowStore.updateStep(ptFlow.id, s.id, { status: 'done' }));
+  }
+
   const app1 = appStore.upsertForUnit(
     buildApplicationData({ unit: unit1, projectName: project.name })
   );

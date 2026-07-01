@@ -94,8 +94,7 @@ export const useAnalysisFlowStore = create<AnalysisFlowStore>()(
               position: step.position ?? { x: 0, y: maxY + 160 },
             };
             // 親ステップが明示指定されていればそれだけにリンク。
-            // 指定なしの場合のみ従来通り「全ての末尾ステップ」 から自動リンク
-            // (旧来の「ステップ追加 → 順に並ぶ」UX 維持)。
+            // 指定なし（パレットからのD&D等）は自動接続しない（ユーザーが手動で線を繋ぐ）。
             let linkedSteps: AnalysisFlowStep[];
             if (parentStepId) {
               linkedSteps = normalizedSteps.map((st) =>
@@ -104,14 +103,7 @@ export const useAnalysisFlowStore = create<AnalysisFlowStore>()(
                   : st
               );
             } else {
-              const tailIds = normalizedSteps
-                .filter((st) => (st.nextStepIds ?? []).length === 0)
-                .map((st) => st.id);
-              linkedSteps = normalizedSteps.map((st) =>
-                tailIds.includes(st.id)
-                  ? { ...st, nextStepIds: [...(st.nextStepIds ?? []), newId] }
-                  : st
-              );
+              linkedSteps = normalizedSteps;
             }
             return {
               ...f,

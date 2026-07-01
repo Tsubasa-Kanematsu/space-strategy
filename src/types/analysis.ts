@@ -34,6 +34,7 @@ export interface AnalysisFlowStep {
    */
   kind?: 'normal' | 'decision';
   analysisCaseId?: string;    // 解析ケース (normal)
+  isCustom?: boolean;         // カスタム解析ステップ（サービス種別なし。名前・メモで管理）
   sizingCaseId?: string;      // サイジングケース (normal)
   linkedMassCaseId?: string;  // DB（MassCase）更新ステップ用 (normal)
   pluginCaseId?: string;      // カスタム解析(プラグイン)ケース (normal)
