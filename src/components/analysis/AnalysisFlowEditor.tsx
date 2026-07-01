@@ -192,6 +192,59 @@ const FlowCard: React.FC<{
  * 解析フロー詳細画面: appStore.analysisFlowId で指定された 1 フローを編集する。
  * 一覧画面 (AnalysisFlowList) からクリックして遷移する想定。
  */
+/** フェーズページ「結果」タブ: 解析ステップの進捗一覧＋ドメイン注記。 */
+const PhaseResults: React.FC<{ flow: AnalysisFlow; phase: 'PT' | 'FT'; onGoExecution: () => void }> = ({ flow, phase, onGoExecution }) => {
+  const steps = [...flow.steps].sort((a, b) => a.order - b.order);
+  const total = steps.length;
+  const done = steps.filter((s) => s.status === 'done').length;
+  const allDone = total > 0 && done === total;
+
+  if (total === 0) {
+    return (
+      <div className="text-center text-muted py-5">
+        <i className="bi bi-graph-up fs-1 d-block mb-2 opacity-25" />
+        解析ステップがありません。「実行管理」タブでテンプレートからフローを作成してください。
+        <div className="mt-3">
+          <button className="btn btn-outline-primary btn-sm" onClick={onGoExecution}>
+            <i className="bi bi-diagram-3 me-1" />実行管理へ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="d-flex align-items-center gap-2 mb-3">
+        <span className="fw-semibold"><i className="bi bi-graph-up me-1 text-primary" />解析結果</span>
+        <span className={`badge ${allDone ? 'bg-success' : done > 0 ? 'bg-warning text-dark' : 'bg-secondary'}`}>{done}/{total} 完了</span>
+      </div>
+      <div className="border rounded-3 mb-3">
+        {steps.map((s, i) => (
+          <div key={s.id} className={`d-flex align-items-center px-3 py-2 ${i < steps.length - 1 ? 'border-bottom' : ''}`}>
+            <span className="small flex-grow-1">{s.label || '(無題ステップ)'}</span>
+            {s.status === 'done'
+              ? <span className="badge bg-success">完了</span>
+              : s.status === 'in_progress'
+                ? <span className="badge bg-warning text-dark">実施中</span>
+                : <span className="badge bg-light text-muted border">未実施</span>}
+          </div>
+        ))}
+      </div>
+      <div className={`alert ${allDone ? 'alert-success' : 'alert-secondary'} py-2 px-3 small mb-0`}>
+        <i className="bi bi-info-circle me-1" />
+        {phase === 'PT'
+          ? (allDone
+              ? 'PT解析（計画時）が完了しました。この結果を内閣府申請書に用います。'
+              : 'PT解析（計画時）の結果です。全ステップ完了で申請に使用できます。')
+          : (allDone
+              ? 'FT解析（飛行時）が完了しました。PT解析の想定に包含されているか確認します。'
+              : 'FT解析（飛行時）の結果です。PT解析への包含を確認します。')}
+      </div>
+    </div>
+  );
+};
+
 export const AnalysisFlowEditor: React.FC = () => {
   const { analysisFlowId, navigate } = useAppStore();
   const flows = useAnalysisFlowStore((s) => s.flows);
@@ -209,6 +262,8 @@ export const AnalysisFlowEditor: React.FC = () => {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  // 号機フェーズのページは 条件設定/実行管理/結果 の3タブ
+  const [phaseTab, setPhaseTab] = useState<'conditions' | 'execution' | 'results'>('conditions');
 
   if (!flow) {
     return (
@@ -241,69 +296,99 @@ export const AnalysisFlowEditor: React.FC = () => {
     }
   };
 
+  // 実行管理ツールバー（テンプレート＋進捗バッジ）。owned/standalone 共通。
+  const flowToolbar = (extraLeft?: React.ReactNode, extraRight?: React.ReactNode) => (
+    <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
+      {extraLeft}
+      <button className="btn btn-outline-primary btn-sm" onClick={() => setShowTemplateModal(true)} title="テンプレートから流し込み">
+        <i className="bi bi-stars me-1" />テンプレート
+      </button>
+      {totalSteps > 0 && (
+        <span
+          className={`badge ${flowStatus === 'done' ? 'bg-success' : flowStatus === 'in_progress' ? 'bg-warning text-dark' : 'bg-secondary'}`}
+          style={{ fontSize: '0.72rem' }}
+        >
+          {flowStatus === 'done' ? '完了' : flowStatus === 'in_progress' ? '実施中' : '未実施'}
+          {` ${doneCount}/${totalSteps}`}
+        </span>
+      )}
+      {extraRight}
+    </div>
+  );
+
+  const phaseTabBtn = (id: typeof phaseTab, label: string, icon: string) => (
+    <button
+      className="btn btn-sm"
+      style={{
+        border: 'none', borderRadius: 0, padding: '6px 18px',
+        borderBottom: phaseTab === id ? '2px solid #1558c0' : '2px solid transparent',
+        color: phaseTab === id ? '#1558c0' : '#5b6b7c', fontWeight: phaseTab === id ? 700 : 500,
+        background: 'transparent',
+      }}
+      onClick={() => setPhaseTab(id)}
+    >
+      <i className={`bi bi-${icon} me-1`} />{label}
+    </button>
+  );
+
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-      {/* 全解析の共通パラメータ（号機フェーズのフローのみ）。選択サマリのみ表示し、
-          各行の「変更」でモーダルから選択を変更（質量諸元・誤差源もマスタデータ扱い）。 */}
-      {ownerUnit && ownerPhase && (
-        <CommonParams unit={ownerUnit} phase={ownerPhase} />
+      {ownerUnit && ownerPhase ? (
+        <>
+          {/* フェーズページの3タブ */}
+          <div className="d-flex align-items-center border-bottom mb-3" style={{ gap: 2 }}>
+            {phaseTabBtn('conditions', '条件設定', 'sliders')}
+            {phaseTabBtn('execution', '実行管理', 'diagram-3')}
+            {phaseTabBtn('results', '結果', 'graph-up')}
+          </div>
+
+          {phaseTab === 'conditions' && <CommonParams unit={ownerUnit} phase={ownerPhase} />}
+
+          {phaseTab === 'execution' && (
+            <>
+              {flowToolbar()}
+              <FlowCard flow={flow} projectId={flow.projectId} hideHeader />
+            </>
+          )}
+
+          {phaseTab === 'results' && (
+            <PhaseResults flow={flow} phase={ownerPhase} onGoExecution={() => setPhaseTab('execution')} />
+          )}
+        </>
+      ) : (
+        <>
+          {/* 単体フロー（号機に属さない）: タブなし。従来のツールバー＋フロー。 */}
+          {flowToolbar(
+            <>
+              <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate('analysisFlow')} title="解析フロー一覧へ">
+                <i className="bi bi-arrow-left me-1" />一覧
+              </button>
+              {editingName ? (
+                <input
+                  className="form-control form-control-sm fw-semibold"
+                  style={{ maxWidth: 320 }}
+                  value={nameDraft}
+                  autoFocus
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={() => { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }
+                    if (e.key === 'Escape') { setNameDraft(flow.name); setEditingName(false); }
+                  }}
+                />
+              ) : (
+                <span className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => { setNameDraft(flow.name); setEditingName(true); }} title="クリックして名前を編集">
+                  {flow.name}
+                </span>
+              )}
+            </>,
+            <button className="btn btn-outline-danger btn-sm ms-auto" onClick={handleDelete} title="フローを削除">
+              <i className="bi bi-trash" />
+            </button>,
+          )}
+          <FlowCard flow={flow} projectId={flow.projectId} hideHeader />
+        </>
       )}
-
-      {/* フロー操作ツールバー（コンテキストは上部の号機ワークバー/パンくずが提供） */}
-      <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
-        {!ownerUnit && (
-          <>
-            <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate('analysisFlow')} title="解析フロー一覧へ">
-              <i className="bi bi-arrow-left me-1" />一覧
-            </button>
-            {editingName ? (
-              <input
-                className="form-control form-control-sm fw-semibold"
-                style={{ maxWidth: 320 }}
-                value={nameDraft}
-                autoFocus
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={() => { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { if (nameDraft.trim()) updateFlow(flow.id, { name: nameDraft.trim() }); setEditingName(false); }
-                  if (e.key === 'Escape') { setNameDraft(flow.name); setEditingName(false); }
-                }}
-              />
-            ) : (
-              <span className="fw-semibold" style={{ cursor: 'pointer' }} onClick={() => { setNameDraft(flow.name); setEditingName(true); }} title="クリックして名前を編集">
-                {flow.name}
-              </span>
-            )}
-          </>
-        )}
-        <button
-          className="btn btn-outline-primary btn-sm"
-          onClick={() => setShowTemplateModal(true)}
-          title="テンプレートから流し込み"
-        >
-          <i className="bi bi-stars me-1" />テンプレート
-        </button>
-        {totalSteps > 0 && (
-          <span
-            className={`badge ${
-              flowStatus === 'done'        ? 'bg-success' :
-              flowStatus === 'in_progress' ? 'bg-warning text-dark' :
-              'bg-secondary'
-            }`}
-            style={{ fontSize: '0.72rem' }}
-          >
-            {flowStatus === 'done' ? '完了' : flowStatus === 'in_progress' ? '実施中' : '未実施'}
-            {` ${doneCount}/${totalSteps}`}
-          </span>
-        )}
-        {!ownerUnit && (
-          <button className="btn btn-outline-danger btn-sm ms-auto" onClick={handleDelete} title="フローを削除">
-            <i className="bi bi-trash" />
-          </button>
-        )}
-      </div>
-
-      <FlowCard flow={flow} projectId={flow.projectId} hideHeader />
 
       {showTemplateModal && (
         <TemplateModal

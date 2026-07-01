@@ -4,10 +4,13 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { useApplicationStore } from '../../stores/applicationStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
-import { isPtComplete, PHASE_META, PHASE_STATUSES } from '../../types/vehicleUnit';
+import { isPtComplete, PHASE_META } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
+import { BUILTIN_FLOW_TEMPLATES, PT_TEMPLATE_KEY, FT_TEMPLATE_KEY } from '../analysis/flow/flowTemplates';
 import { openInNewWindow } from '../../lib/nav';
 import type { AnalysisPhase, PhaseState, PhaseStatus } from '../../types';
+
+const PHASE_ACCENT: Record<AnalysisPhase, string> = { PT: '#2563eb', FT: '#0d9488' };
 
 const STATUS_BADGE: Record<PhaseStatus, string> = {
   未着手: 'bg-light text-muted',
@@ -25,6 +28,7 @@ export const VehicleUnitDetail: React.FC = () => {
   const getByUnit = useApplicationStore((s) => s.getByUnit);
   const upsertForUnit = useApplicationStore((s) => s.upsertForUnit);
   const flows = useAnalysisFlowStore((s) => s.flows);
+  const addFlow = useAnalysisFlowStore((s) => s.addFlow);
 
   const unit = vehicleUnitId ? getUnit(vehicleUnitId) : undefined;
 
@@ -48,6 +52,19 @@ export const VehicleUnitDetail: React.FC = () => {
 
   const phaseState = (phase: AnalysisPhase): PhaseState => (phase === 'PT' ? unit.pt : unit.ft);
 
+  // フェーズページ（解析フロー）を開く。無ければテンプレートで作成。
+  const openPhase = (phase: AnalysisPhase) => {
+    const ps = phaseState(phase);
+    let fid = ps.flowId;
+    if (!fid) {
+      const tpl = BUILTIN_FLOW_TEMPLATES.find((t) => t.key === (phase === 'PT' ? PT_TEMPLATE_KEY : FT_TEMPLATE_KEY));
+      const f = addFlow({ projectId: unit.projectId, name: `${unit.unitNo}号機 ${PHASE_META[phase].label} 解析フロー`, steps: tpl ? tpl.build() : [] });
+      fid = f.id;
+      updatePhase(unit.id, phase, { flowId: fid });
+    }
+    navigate('analysisFlowDetail', { analysisFlowId: fid, projectId: unit.projectId });
+  };
+
   const generateApplication = () => {
     const data = buildApplicationData({ unit, projectName: project?.name ?? '' });
     const created = upsertForUnit(data);
@@ -60,51 +77,50 @@ export const VehicleUnitDetail: React.FC = () => {
       ? <span className="badge bg-success">設定済み</span>
       : <span className="badge bg-light text-muted">未設定</span>;
 
-  // フェーズの状態詳細パネル（入口は上部の号機ワークバーのタブ）
+  // フェーズのカード（クリックでフェーズページへ遷移）
   const renderPhase = (phase: AnalysisPhase) => {
     const ps = phaseState(phase);
     const meta = PHASE_META[phase];
+    const accent = PHASE_ACCENT[phase];
     const flow = ps.flowId ? flows.find((f) => f.id === ps.flowId) : null;
     const totalSteps = flow ? flow.steps.length : 0;
     const doneSteps = flow ? flow.steps.filter((s) => s.status === 'done').length : 0;
     return (
-      <div className="card h-100">
-        <div className="card-header d-flex justify-content-between align-items-center">
-          <span className="fw-semibold"><i className={`bi bi-${meta.icon} me-1`} />{meta.label}</span>
-          <span className={`badge ${STATUS_BADGE[ps.status]}`}>{ps.status}</span>
-        </div>
-        <div className="card-body">
-          <div className="mb-3">
-            <label className="form-label small fw-medium mb-1">ステータス</label>
-            <select
-              className="form-select form-select-sm"
-              value={ps.status}
-              onChange={(e) => updatePhase(unit.id, phase, { status: e.target.value as PhaseStatus })}
+      <button
+        className="card h-100 w-100 text-start p-0"
+        style={{ cursor: 'pointer', borderLeft: `4px solid ${accent}`, transition: 'box-shadow .15s, transform .1s', background: '#fff' }}
+        onClick={() => openPhase(phase)}
+        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = ''; }}
+      >
+        <div className="card-body p-3">
+          <div className="d-flex align-items-center gap-2 mb-3">
+            <span
+              className="d-flex align-items-center justify-content-center rounded-2"
+              style={{ width: 38, height: 38, background: `${accent}18`, color: accent, flexShrink: 0 }}
             >
-              {PHASE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
-            </select>
+              <i className={`bi bi-${meta.icon}`} style={{ fontSize: '1.1rem' }} />
+            </span>
+            <span className="fw-semibold" style={{ fontSize: '1rem' }}>{meta.label}</span>
+            <span className={`badge ${STATUS_BADGE[ps.status]} ms-auto`}>{ps.status}</span>
           </div>
-          <table className="table table-sm align-middle mb-0">
-            <tbody>
-              <tr>
-                <td className="text-muted" style={{ width: 110 }}><i className="bi bi-sliders me-1" />条件設定</td>
-                <td>{setBadge(!!ps.massCaseId)}<small className="text-muted ms-2">機体諸元</small></td>
-              </tr>
-              <tr>
-                <td className="text-muted"><i className="bi bi-diagram-3 me-1" />解析フロー</td>
-                <td>
-                  {ps.flowId
-                    ? <>{setBadge(true)}<small className="text-muted ms-2">{doneSteps}/{totalSteps} ステップ完了</small></>
-                    : setBadge(false)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="text-muted small mt-2">
-            <i className="bi bi-info-circle me-1" />上部の「{meta.label}」タブで解析フローを開き、その上部の「共通パラメータ」から条件設定・マスタを設定します。
+          <div className="d-flex flex-column gap-1 small">
+            <div className="d-flex align-items-center">
+              <span className="text-muted" style={{ width: 92 }}><i className="bi bi-sliders me-1" />条件設定</span>
+              {setBadge(!!ps.massCaseId)}<span className="text-muted ms-2">機体諸元</span>
+            </div>
+            <div className="d-flex align-items-center">
+              <span className="text-muted" style={{ width: 92 }}><i className="bi bi-diagram-3 me-1" />解析フロー</span>
+              {ps.flowId
+                ? <>{setBadge(true)}<span className="text-muted ms-2">{doneSteps}/{totalSteps} ステップ完了</span></>
+                : setBadge(false)}
+            </div>
+          </div>
+          <div className="mt-3 fw-semibold small" style={{ color: accent }}>
+            {meta.label}を開く<i className="bi bi-arrow-right ms-1" />
           </div>
         </div>
-      </div>
+      </button>
     );
   };
 
