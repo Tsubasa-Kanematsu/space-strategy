@@ -36,8 +36,9 @@ export const CommonParams: React.FC<{ unit: VehicleUnit; phase: AnalysisPhase }>
   const selections = ps.masterSelections ?? {};
   const massCaseId = ps.massCaseId ?? null;
 
-  const projectCases = useMemo(() => cases.filter((c) => c.projectId === unit.projectId), [cases, unit.projectId]);
-  const selectedCase = projectCases.find((c) => c.id === massCaseId) ?? null;
+  // 質量諸元はマスタデータ扱い（プロジェクト非依存）。全ケースから選択する。
+  const allCases = cases;
+  const selectedCase = allCases.find((c) => c.id === massCaseId) ?? null;
   const caseComponents = useMemo(
     () => (massCaseId ? getComponentsForCase(massCaseId) : []),
     [allComponents, massCaseId, getComponentsForCase],
@@ -89,7 +90,7 @@ export const CommonParams: React.FC<{ unit: VehicleUnit; phase: AnalysisPhase }>
   };
   const selectCase = (id: string) => updatePhase(unit.id, phase, { massCaseId: id });
   const createCase = () => {
-    const c = addCase({ projectId: unit.projectId, name: `機体諸元 ${projectCases.length + 1}`, memo: '', createdBy: '' });
+    const c = addCase({ projectId: "", name: `機体諸元 ${allCases.length + 1}`, memo: '', createdBy: '' });
     selectCase(c.id);
   };
 
@@ -158,10 +159,10 @@ export const CommonParams: React.FC<{ unit: VehicleUnit; phase: AnalysisPhase }>
                   <>
                     <p className="text-muted small mb-2">使用する{pickerRow.label}のケースを選びます。内容の編集は「編集」から。</p>
                     <div className="list-group mb-2">
-                      {projectCases.length === 0 && (
+                      {allCases.length === 0 && (
                         <div className="text-muted small py-2">ケースがありません。「新規作成」してください。</div>
                       )}
-                      {projectCases.map((c) => {
+                      {allCases.map((c) => {
                         const on = c.id === massCaseId;
                         const comps = getComponentsForCase(c.id);
                         const errs = comps.reduce((n, x) => n + (x.errorSources?.length ?? 0), 0);

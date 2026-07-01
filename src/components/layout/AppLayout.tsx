@@ -39,6 +39,7 @@ import { PluginCaseList } from '../plugin/PluginCaseList';
 import { PluginConditionView } from '../plugin/PluginConditionView';
 import { AnalysisHub } from '../analysis/AnalysisHub';
 import { MasterDataHub } from '../masterData/MasterDataHub';
+import { MassCaseMasterView } from '../masterData/MassCaseMasterView';
 import { AIAssistant } from '../ai/AIAssistant';
 
 class ErrorBoundary extends React.Component<
@@ -89,9 +90,8 @@ const ViewComponent: React.FC = () => {
     case 'aeroCoeffMaster':   return <AeroCoeffView />;
     case 'debrisMaster':      return <DebrisMasterView />;
     case 'traceability':      return <Traceability />;
-    // massCases (ロケットDB 一覧) は traceability の DB Flow ツリーと役割が被るため廃止。
-    // 旧 URL / 既存遷移コールは traceability にフォールバックさせる
-    case 'massCases':         return <Traceability />;
+    // massCases はマスタデータ「質量諸元」のケース一覧（プロジェクト非依存）として使う
+    case 'massCases':         return <MassCaseMasterView />;
     case 'massModel':         return <MassModel />;
     case 'parameters':        return <ParameterList />;
     case 'rocketShapeData':   return <RocketShapeView />;

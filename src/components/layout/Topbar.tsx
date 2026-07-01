@@ -278,6 +278,7 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
   if (view === 'masterDataHub') return [{ label: 'マスタデータ' }];
   {
     const MASTER_LABEL: Partial<Record<AppView, string>> = {
+      massCases: '質量諸元データ',
       antennaData: 'アンテナデータ',
       groundAntennaData: '地上局アンテナデータ',
       vehicleAntennaData: '機体アンテナデータ',
@@ -307,7 +308,7 @@ function buildCrumbs(a: BuildCrumbsArgs): Crumb[] {
   ];
 
   // traceability と massCases (廃止予定) は同じビュー扱い
-  if (view === 'traceability' || view === 'massCases') return [...base, { label: 'トレーサビリティ' }];
+  if (view === 'traceability') return [...base, { label: 'トレーサビリティ' }];
 
   // DB 個別タブ (massModel/parameters/rocketShape/propulsion/debrisShape/errorSource)
   // 旧: プロジェクト > 〇〇 > ロケットDB 一覧 > DB名 > <タブ>
