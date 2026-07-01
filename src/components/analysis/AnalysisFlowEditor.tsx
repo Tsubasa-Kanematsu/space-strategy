@@ -3,7 +3,8 @@ import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { CommonParams } from './CommonParams';
-import { AnalysisConditionsSection } from './AnalysisConditionsSection';
+import { AnalysisConditionModal } from './AnalysisConditionsSection';
+import { ExecutionManager } from './ExecutionManager';
 import type { AnalysisFlow, AnalysisEntry } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -24,7 +25,9 @@ const FlowCard: React.FC<{
   /** 詳細画面で使う時はカードヘッダー (折りたたみ/名前編集/削除) を非表示にする。
    *  ページヘッダーが代替を提供するため。*/
   hideHeader?: boolean;
-}> = ({ flow, projectId, hideHeader = false }) => {
+  onNodeOpen?: (stepId: string) => void;
+  hideRunBar?: boolean;
+}> = ({ flow, projectId, hideHeader = false, onNodeOpen, hideRunBar }) => {
   const updateFlow = useAnalysisFlowStore((s) => s.updateFlow);
   const deleteFlow = useAnalysisFlowStore((s) => s.deleteFlow);
   const addStep = useAnalysisFlowStore((s) => s.addStep);
@@ -166,6 +169,8 @@ const FlowCard: React.FC<{
                 projectId={projectId}
                 selectedStepId={selectedStepId}
                 onSelectedStepIdChange={setSelectedStepId}
+                onNodeOpen={onNodeOpen}
+                hideRunBar={hideRunBar}
               />
             </div>
           )}
@@ -266,6 +271,8 @@ export const AnalysisFlowEditor: React.FC = () => {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   // 号機フェーズのページは 条件設定/実行管理/結果 の3タブ
   const [phaseTab, setPhaseTab] = useState<'conditions' | 'execution' | 'results'>('conditions');
+  // 条件設定: 解析フローのノードをクリックしたら開く条件モーダルの対象ステップ
+  const [conditionStepId, setConditionStepId] = useState<string | null>(null);
 
   if (!flow) {
     return (
@@ -347,19 +354,38 @@ export const AnalysisFlowEditor: React.FC = () => {
           {phaseTab === 'conditions' && (
             <>
               <CommonParams unit={ownerUnit} entry={ownerEntry} />
-              <AnalysisConditionsSection flow={flow} massCaseId={ownerEntry.massCaseId ?? null} />
+              <div className="d-flex align-items-center mb-2 mt-4">
+                <span className="fw-semibold small"><i className="bi bi-diagram-3 me-1 text-primary" />解析フロー</span>
+                <span className="text-muted ms-2" style={{ fontSize: '0.75rem' }}>解析の構成を組み立て、各解析をクリックして固有の条件を設定します</span>
+                <button className="btn btn-sm btn-outline-primary ms-auto py-0" onClick={() => setShowTemplateModal(true)}>
+                  <i className="bi bi-stars me-1" />テンプレート
+                </button>
+              </div>
+              <FlowCard
+                flow={flow}
+                projectId={flow.projectId}
+                hideHeader
+                hideRunBar
+                onNodeOpen={(id) => setConditionStepId(id)}
+              />
             </>
           )}
 
           {phaseTab === 'execution' && (
-            <>
-              {flowToolbar()}
-              <FlowCard flow={flow} projectId={flow.projectId} hideHeader />
-            </>
+            <ExecutionManager flow={flow} onGoConditions={() => setPhaseTab('conditions')} />
           )}
 
           {phaseTab === 'results' && (
             <PhaseResults flow={flow} entry={ownerEntry} onGoExecution={() => setPhaseTab('execution')} />
+          )}
+
+          {conditionStepId && (
+            <AnalysisConditionModal
+              flow={flow}
+              stepId={conditionStepId}
+              massCaseId={ownerEntry.massCaseId ?? null}
+              onClose={() => setConditionStepId(null)}
+            />
           )}
         </>
       ) : (

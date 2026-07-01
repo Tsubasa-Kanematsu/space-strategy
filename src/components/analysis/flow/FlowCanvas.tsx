@@ -38,9 +38,13 @@ interface FlowCanvasProps {
   /** 外部 (FlowCard) からの選択制御。未指定なら内部 state を使う */
   selectedStepId?: string | null;
   onSelectedStepIdChange?: (id: string | null) => void;
+  /** ノードクリック時に呼ばれる（条件設定でモーダルを開くために使用）。指定時は選択トグルの代わりに実行。 */
+  onNodeOpen?: (stepId: string) => void;
+  /** 左上の実行バー（全フロー実行等）を隠す（条件設定では実行は別タブで行う）。 */
+  hideRunBar?: boolean;
 }
 
-export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selectedStepId: externalSelectedId, onSelectedStepIdChange }) => {
+export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selectedStepId: externalSelectedId, onSelectedStepIdChange, onNodeOpen, hideRunBar }) => {
   const updateStep = useAnalysisFlowStore((s) => s.updateStep);
   const deleteStep = useAnalysisFlowStore((s) => s.deleteStep);
   const addStep = useAnalysisFlowStore((s) => s.addStep);
@@ -193,9 +197,10 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
   // ── ノードクリック → 右パネルでステップ選択/解除 ─────────────────────────
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: FlowStepNodeType) => {
+      if (onNodeOpen) { onNodeOpen(node.id); return; }
       setSelectedStepId((prev) => (prev === node.id ? null : node.id));
     },
-    []
+    [onNodeOpen, setSelectedStepId]
   );
 
   // ── 右クリック: ノード上で「後段に追加 / 並列に追加 / 削除」 ─────────────
@@ -276,7 +281,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
         position: 'relative',
       }}
     >
-      {/* 左上 浮動実行バー */}
+      {/* 左上 浮動実行バー（条件設定では隠す） */}
+      {!hideRunBar && (
       <div
         style={{
           position: 'absolute',
@@ -325,6 +331,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
           <i className="bi bi-arrow-counterclockwise me-1" />リセット
         </button>
       </div>
+      )}
       {/* ReactFlow キャンバス */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <ReactFlow
