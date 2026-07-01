@@ -60,6 +60,14 @@ export interface AnalysisFlow {
   updatedAt: string;
 }
 
+/** パラメータ別のメモ・エビデンス注記。 */
+export interface ParamAnnotation {
+  id: string;
+  param: string;      // 対象パラメータ名（自由記述可）
+  memo: string;       // 設定根拠・補足
+  evidence: string;   // エビデンス（図番・報告書・URL 等）
+}
+
 export interface AnalysisCase {
   id: string;
   projectId: string;
@@ -69,6 +77,7 @@ export interface AnalysisCase {
   memo: string;
   createdBy: string;
   condition: Record<string, unknown>;
+  annotations?: ParamAnnotation[];  // パラメータ別のメモ・エビデンス
   upstreamCaseId: string;  // 上流解析ケースID（依存関係がない場合は空文字）
   createdAt: string;
   updatedAt: string;
