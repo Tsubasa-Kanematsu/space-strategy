@@ -6,6 +6,7 @@ import { useApplicationStore } from '../../stores/applicationStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { isPtComplete, PHASE_META, PHASE_STATUSES } from '../../types/vehicleUnit';
 import { buildApplicationData } from '../../utils/applicationGen';
+import { openInNewWindow } from '../../lib/nav';
 import type { AnalysisPhase, PhaseState, PhaseStatus } from '../../types';
 
 const STATUS_BADGE: Record<PhaseStatus, string> = {
@@ -50,7 +51,8 @@ export const VehicleUnitDetail: React.FC = () => {
   const generateApplication = () => {
     const data = buildApplicationData({ unit, projectName: project?.name ?? '' });
     const created = upsertForUnit(data);
-    navigate('applicationDetail', { applicationId: created.id });
+    // 申請書は別の括り（申請書）なので新規ウィンドウで開く
+    openInNewWindow('applicationDetail', { applicationId: created.id });
   };
 
   const setBadge = (ok: boolean) =>
@@ -124,7 +126,7 @@ export const VehicleUnitDetail: React.FC = () => {
             <div className="d-flex align-items-center gap-2">
               <span className={`badge bg-${app.status === '提出済み' || app.status === '受理' ? 'success' : 'primary'}`}>{app.status}</span>
               <span className="small text-muted">申請書を生成済みです。</span>
-              <button className="btn btn-sm btn-outline-success" onClick={() => navigate('applicationDetail', { applicationId: app.id })}>
+              <button className="btn btn-sm btn-outline-success" onClick={() => openInNewWindow('applicationDetail', { applicationId: app.id })}>
                 <i className="bi bi-file-earmark-text me-1" />申請書を開く
               </button>
             </div>

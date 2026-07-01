@@ -3,7 +3,8 @@ import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { PHASE_META } from '../../types/vehicleUnit';
-import type { AnalysisFlow, AppView } from '../../types';
+import { MasterSelectModal } from './MasterSelectModal';
+import type { AnalysisFlow } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
 import { BUILTIN_FLOW_TEMPLATES, customToFlowTemplate, resolveSeedFromLabel, type FlowTemplate } from './flow/flowTemplates';
@@ -211,6 +212,7 @@ export const AnalysisFlowEditor: React.FC = () => {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showMasterModal, setShowMasterModal] = useState(false);
 
   if (!flow) {
     return (
@@ -243,16 +245,11 @@ export const AnalysisFlowEditor: React.FC = () => {
     }
   };
 
-  // 共通パラメータ（① マスタ）クイックリンク
-  const MASTERS: { label: string; icon: string; view: AppView }[] = [
-    { label: '機体形状', icon: 'rulers', view: 'shapeMaster' },
-    { label: '空力係数', icon: 'wind', view: 'aeroCoeffMaster' },
-    { label: '推進系', icon: 'fire', view: 'propulsionMaster' },
-    { label: '風', icon: 'tornado', view: 'windMaster' },
-    { label: '代表破片', icon: 'hexagon', view: 'debrisMaster' },
-    { label: '故障率', icon: 'exclamation-triangle', view: 'failureRateMaster' },
-    { label: 'アンテナ', icon: 'broadcast', view: 'vehicleAntennaData' },
-  ];
+  // 共通パラメータ: マスタ選択件数（① マスタ）
+  const ownerPs = ownerUnit ? (ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft) : null;
+  const masterSelCount = ownerPs?.masterSelections
+    ? Object.values(ownerPs.masterSelections).reduce((n, a) => n + (a?.length ?? 0), 0)
+    : 0;
 
   // ② 機体諸元（条件設定）を開く（無ければ作成）
   const openConditions = () => {
@@ -278,12 +275,10 @@ export const AnalysisFlowEditor: React.FC = () => {
               <i className="bi bi-box-seam me-1" />機体諸元（条件設定）
             </button>
             <span style={{ borderLeft: '1px solid #cfe0ff', height: 22, margin: '0 4px' }} />
-            <span className="text-muted small">マスタ:</span>
-            {MASTERS.map((m) => (
-              <button key={m.view} className="btn btn-sm btn-outline-secondary" onClick={() => navigate(m.view)} title={`${m.label}データ（マスタ）を開く`}>
-                <i className={`bi bi-${m.icon} me-1`} />{m.label}
-              </button>
-            ))}
+            <button className="btn btn-sm btn-outline-primary" onClick={() => setShowMasterModal(true)} title="各マスタから使用する項目を選択">
+              <i className="bi bi-collection me-1" />マスタを選択
+              {masterSelCount > 0 && <span className="badge bg-primary ms-1">{masterSelCount}</span>}
+            </button>
           </div>
         </div>
       )}
@@ -350,6 +345,10 @@ export const AnalysisFlowEditor: React.FC = () => {
           hasExistingSteps={totalSteps > 0}
           onClose={() => setShowTemplateModal(false)}
         />
+      )}
+
+      {showMasterModal && ownerUnit && ownerPhase && (
+        <MasterSelectModal unit={ownerUnit} phase={ownerPhase} onClose={() => setShowMasterModal(false)} />
       )}
     </div>
   );

@@ -80,6 +80,7 @@ export function urlToNav(pathname: string, search: string): AppNavState {
   };
 
   if (parts.length === 0) return base;
+  if (parts[0] === 'analysis' && !parts[1]) return { ...base, view: 'analysisHub' };
   if (parts[0] === 'antenna') return { ...base, view: 'antennaData' };
   if (parts[0] === 'master-data') {
     switch (parts[1]) {

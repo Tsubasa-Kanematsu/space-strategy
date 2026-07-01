@@ -3,6 +3,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import type { AppView } from '../../types';
 import { useFlags } from '../../stores/featureFlagsStore';
+import { sectionOf, openInNewWindow, type NavSection } from '../../lib/nav';
 
 // 「解析」 1 アイテムから analysisHub に入り、ハブ内のカードで各サービスを開く形に統一。
 // なので解析関連の全 view はサイドバーの 「解析」 ハイライト対象として扱う。
@@ -46,6 +47,14 @@ export const Sidebar: React.FC = () => {
   const isMasterActive = MASTER_LIKE_VIEWS.includes(view);
   const isApplicationActive = APPLICATION_LIKE_VIEWS.includes(view);
 
+  // 現在の括り（号機由来の解析フローは project 扱い）。括りを跨ぐ遷移は新規ウィンドウ。
+  const currentSection: NavSection =
+    view === 'analysisFlowDetail' && flowOwnedByUnit ? 'project' : sectionOf(view);
+  const go = (target: AppView) => {
+    if (currentSection === sectionOf(target)) navigate(target);
+    else openInNewWindow(target);
+  };
+
   return (
     <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
@@ -57,7 +66,7 @@ export const Sidebar: React.FC = () => {
         {FEATURE_FLAGS.project && (
           <button
             className={`sidebar-item ${isProjectActive ? 'active' : ''}`}
-            onClick={() => navigate('projects')}
+            onClick={() => go('projects')}
           >
             <i className="bi bi-grid-3x3-gap" />
             <span>プロジェクト</span>
@@ -68,7 +77,7 @@ export const Sidebar: React.FC = () => {
             解析フロー + 外部ツール連携 をカードで開ける) */}
         <button
           className={`sidebar-item ${isAnalysisActive ? 'active' : ''}`}
-          onClick={() => navigate('analysisHub')}
+          onClick={() => go('analysisHub')}
         >
           <i className="bi bi-cpu" />
           <span>解析</span>
@@ -77,7 +86,7 @@ export const Sidebar: React.FC = () => {
         {/* マスタデータ (ハブ統合: アンテナ・代表破片・機体形状・空力係数) */}
         <button
           className={`sidebar-item ${isMasterActive ? 'active' : ''}`}
-          onClick={() => navigate('masterDataHub')}
+          onClick={() => go('masterDataHub')}
         >
           <i className="bi bi-archive" />
           <span>マスタデータ</span>
@@ -87,7 +96,7 @@ export const Sidebar: React.FC = () => {
         {FEATURE_FLAGS.applications && (
           <button
             className={`sidebar-item ${isApplicationActive ? 'active' : ''}`}
-            onClick={() => navigate('applications')}
+            onClick={() => go('applications')}
           >
             <i className="bi bi-file-earmark-text" />
             <span>申請書</span>

@@ -36,6 +36,8 @@ export interface PhaseState {
   massCaseId?: string;
   /** このフェーズの解析パイプライン（解析フロー）の ID */
   flowId?: string;
+  /** 共通パラメータ: マスタ種別ごとに選択したマスタ項目 ID（全解析共通） */
+  masterSelections?: Record<string, string[]>;
   status: PhaseStatus;
 }
 
