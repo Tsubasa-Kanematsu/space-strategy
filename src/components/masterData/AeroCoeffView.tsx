@@ -1,62 +1,78 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
+import { useMasterDataStore } from '../../stores/masterDataStore';
+import type { AeroCoeffMaster } from '../../types';
 
 /**
- * 空力係数マスタ。機体ごとの マッハ数 vs 抗力係数 Cd / 揚力傾斜 CLα を保持する
- * 読み取り中心ビュー。遷音速で Cd がピークになる代表カーブをサンプル保持する。
+ * 空力係数マスタ。抗力係数・揚力傾斜などの代表値を設定（追加/編集/削除）し、解析で参照する。
  */
 
-interface AeroRow {
-  mach: number;
-  cd: number;
-  clAlpha: number; // 1/rad
-}
-
-interface VehicleAero {
+interface FormState {
   name: string;
-  rows: AeroRow[];
+  cdSubsonic: string;
+  cdTransonicPeak: string;
+  cdSupersonic: string;
+  clAlpha: string;
+  memo: string;
 }
 
-const VEHICLES: VehicleAero[] = [
-  {
-    name: 'LV-Alpha',
-    rows: [
-      { mach: 0.0, cd: 0.32, clAlpha: 2.1 },
-      { mach: 0.3, cd: 0.31, clAlpha: 2.2 },
-      { mach: 0.6, cd: 0.34, clAlpha: 2.4 },
-      { mach: 0.8, cd: 0.42, clAlpha: 2.8 },
-      { mach: 0.9, cd: 0.54, clAlpha: 3.1 },
-      { mach: 1.0, cd: 0.58, clAlpha: 3.0 },
-      { mach: 1.2, cd: 0.52, clAlpha: 2.7 },
-      { mach: 1.5, cd: 0.45, clAlpha: 2.5 },
-      { mach: 2.0, cd: 0.38, clAlpha: 2.3 },
-      { mach: 3.0, cd: 0.30, clAlpha: 2.0 },
-      { mach: 5.0, cd: 0.24, clAlpha: 1.7 },
-    ],
-  },
-  {
-    name: 'イプシロンS相当',
-    rows: [
-      { mach: 0.0, cd: 0.30, clAlpha: 2.3 },
-      { mach: 0.3, cd: 0.29, clAlpha: 2.4 },
-      { mach: 0.6, cd: 0.33, clAlpha: 2.6 },
-      { mach: 0.8, cd: 0.44, clAlpha: 3.0 },
-      { mach: 0.9, cd: 0.56, clAlpha: 3.3 },
-      { mach: 1.0, cd: 0.61, clAlpha: 3.2 },
-      { mach: 1.2, cd: 0.54, clAlpha: 2.9 },
-      { mach: 1.5, cd: 0.46, clAlpha: 2.6 },
-      { mach: 2.0, cd: 0.39, clAlpha: 2.4 },
-      { mach: 3.0, cd: 0.31, clAlpha: 2.1 },
-      { mach: 5.0, cd: 0.25, clAlpha: 1.8 },
-    ],
-  },
-];
+const emptyForm = (): FormState => ({
+  name: '', cdSubsonic: '', cdTransonicPeak: '', cdSupersonic: '', clAlpha: '', memo: '',
+});
+
+const toNum = (s: string): number | null => {
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+};
+
+const numCell = (v: number | null) => (v !== null ? v : <span className="text-muted">—</span>);
 
 export const AeroCoeffView: React.FC = () => {
   const navigate = useAppStore((s) => s.navigate);
-  const [vehicleIdx, setVehicleIdx] = useState(0);
-  const vehicle = VEHICLES[vehicleIdx];
-  const maxCd = Math.max(...vehicle.rows.map((r) => r.cd));
+  const aeroCoeffs = useMasterDataStore((s) => s.aeroCoeffs);
+  const addAeroCoeff = useMasterDataStore((s) => s.addAeroCoeff);
+  const updateAeroCoeff = useMasterDataStore((s) => s.updateAeroCoeff);
+  const deleteAeroCoeff = useMasterDataStore((s) => s.deleteAeroCoeff);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editTarget, setEditTarget] = useState<AeroCoeffMaster | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm());
+  const [confirmDelete, setConfirmDelete] = useState<AeroCoeffMaster | null>(null);
+
+  const openCreate = () => { setEditTarget(null); setForm(emptyForm()); setShowModal(true); };
+  const openEdit = (x: AeroCoeffMaster) => {
+    setEditTarget(x);
+    setForm({
+      name: x.name,
+      cdSubsonic: x.cdSubsonic?.toString() ?? '',
+      cdTransonicPeak: x.cdTransonicPeak?.toString() ?? '',
+      cdSupersonic: x.cdSupersonic?.toString() ?? '',
+      clAlpha: x.clAlpha?.toString() ?? '',
+      memo: x.memo,
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    const data = {
+      name: form.name.trim(),
+      cdSubsonic: toNum(form.cdSubsonic),
+      cdTransonicPeak: toNum(form.cdTransonicPeak),
+      cdSupersonic: toNum(form.cdSupersonic),
+      clAlpha: toNum(form.clAlpha),
+      memo: form.memo,
+    };
+    if (editTarget) updateAeroCoeff(editTarget.id, data);
+    else addAeroCoeff(data);
+    setShowModal(false);
+  };
+
+  const handleDelete = () => {
+    if (!confirmDelete) return;
+    deleteAeroCoeff(confirmDelete.id);
+    setConfirmDelete(null);
+  };
 
   return (
     <div>
@@ -64,73 +80,129 @@ export const AeroCoeffView: React.FC = () => {
         <i className="bi bi-arrow-left me-1" />マスタデータ
       </button>
 
-      <h1 className="page-title">
-        <i className="bi bi-graph-up me-2 text-primary" />
-        空力係数データ
-      </h1>
-      <p className="text-muted small mb-3">
-        機体ごとのマッハ数依存の抗力係数 Cd・揚力傾斜 CLα テーブル。軌道・分散解析の空力入力として参照します。
-      </p>
-
-      <div className="filter-bar mb-3 rounded">
-        <label className="form-label fw-medium mb-0 me-2">機体</label>
-        <select
-          className="form-select form-select-sm"
-          style={{ maxWidth: 240 }}
-          value={vehicleIdx}
-          onChange={(e) => setVehicleIdx(Number(e.target.value))}
-        >
-          {VEHICLES.map((v, i) => (
-            <option key={v.name} value={i}>{v.name}</option>
-          ))}
-        </select>
-        <small className="text-muted ms-auto">{vehicle.rows.length} 点</small>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h1 className="page-title mb-0">
+          <i className="bi bi-wind me-2 text-primary" />空力係数データ
+        </h1>
+        <button className="btn btn-primary btn-sm" onClick={openCreate}>
+          <i className="bi bi-plus-lg me-1" />新規登録
+        </button>
       </div>
+      <p className="text-muted small mb-3">
+        機体の抗力係数（マッハ域別）・揚力傾斜などの代表空力係数を設定します。飛行解析・空力解析の入力として参照します。
+      </p>
 
       <div className="card">
         <div className="table-responsive">
-          <table className="table table-hover mb-0">
+          <table className="table table-hover mb-0 align-middle">
             <thead>
               <tr>
-                <th className="text-end">マッハ数 M</th>
-                <th className="text-end">抗力係数 Cd</th>
-                <th className="text-end">揚力傾斜 CLα (1/rad)</th>
-                <th>領域</th>
+                <th>名称</th>
+                <th className="text-end">亜音速 Cd</th>
+                <th className="text-end">遷音速ピーク Cd</th>
+                <th className="text-end">超音速 Cd</th>
+                <th className="text-end">揚力傾斜 CLα (/rad)</th>
+                <th className="col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              {vehicle.rows.map((r) => (
-                <tr key={r.mach}>
-                  <td className="text-end font-monospace">{r.mach.toFixed(1)}</td>
-                  <td className="text-end font-monospace">
-                    {r.cd.toFixed(2)}
-                    {r.cd === maxCd && <i className="bi bi-caret-up-fill text-danger ms-1" title="ピーク" />}
-                  </td>
-                  <td className="text-end font-monospace">{r.clAlpha.toFixed(1)}</td>
-                  <td>
-                    {r.mach < 0.8 ? (
-                      <span className="badge bg-info-subtle text-info">亜音速</span>
-                    ) : r.mach <= 1.2 ? (
-                      <span className="badge bg-warning-subtle text-warning">遷音速</span>
-                    ) : (
-                      <span className="badge bg-secondary-subtle text-secondary">超音速</span>
-                    )}
+              {aeroCoeffs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center text-muted py-5">
+                    <i className="bi bi-wind fs-3 d-block mb-2 opacity-25" />
+                    <div>空力係数データがありません</div>
+                    <button className="btn btn-primary btn-sm mt-2" onClick={openCreate}>
+                      <i className="bi bi-plus-lg me-1" />最初の空力係数を登録
+                    </button>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                aeroCoeffs.map((x) => (
+                  <tr key={x.id}>
+                    <td className="fw-medium">{x.name}</td>
+                    <td className="text-end font-monospace">{numCell(x.cdSubsonic)}</td>
+                    <td className="text-end font-monospace">{numCell(x.cdTransonicPeak)}</td>
+                    <td className="text-end font-monospace">{numCell(x.cdSupersonic)}</td>
+                    <td className="text-end font-monospace">{numCell(x.clAlpha)}</td>
+                    <td className="col-actions">
+                      <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => openEdit(x)} title="編集">
+                        <i className="bi bi-pencil" />
+                      </button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => setConfirmDelete(x)} title="削除">
+                        <i className="bi bi-trash" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      <div className="card border-info-subtle mt-3">
-        <div className="card-body d-flex gap-2 py-2">
-          <i className="bi bi-info-circle text-info mt-1" />
-          <small className="text-muted">
-            設計フェーズで確定した空力データを運用フェーズで参照します。編集は設計版ツールで行います。
-          </small>
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title"><i className="bi bi-wind me-2" />{editTarget ? '空力係数編集' : '新規空力係数登録'}</h5>
+                <button className="btn-close" onClick={() => setShowModal(false)} />
+              </div>
+              <div className="modal-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <label className="form-label fw-medium">名称 <span className="text-danger">*</span></label>
+                    <input className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例: LV-Alpha 標準空力" autoFocus />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-medium">亜音速 Cd</label>
+                    <input type="number" step="0.01" className="form-control" value={form.cdSubsonic} onChange={(e) => setForm({ ...form, cdSubsonic: e.target.value })} placeholder="例: 0.30" />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-medium">遷音速ピーク Cd</label>
+                    <input type="number" step="0.01" className="form-control" value={form.cdTransonicPeak} onChange={(e) => setForm({ ...form, cdTransonicPeak: e.target.value })} placeholder="例: 0.55" />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-medium">超音速 Cd</label>
+                    <input type="number" step="0.01" className="form-control" value={form.cdSupersonic} onChange={(e) => setForm({ ...form, cdSupersonic: e.target.value })} placeholder="例: 0.28" />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-medium">揚力傾斜 CLα (/rad)</label>
+                    <input type="number" step="0.1" className="form-control" value={form.clAlpha} onChange={(e) => setForm({ ...form, clAlpha: e.target.value })} placeholder="例: 2.0" />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label fw-medium">メモ</label>
+                    <textarea className="form-control" rows={2} value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowModal(false)}>キャンセル</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={!form.name.trim()}>{editTarget ? '保存' : '登録'}</button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {confirmDelete && (
+        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-dialog modal-sm">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title text-danger">削除確認</h5>
+                <button className="btn-close" onClick={() => setConfirmDelete(null)} />
+              </div>
+              <div className="modal-body"><p><strong>{confirmDelete.name}</strong> を削除しますか？</p></div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>キャンセル</button>
+                <button className="btn btn-danger" onClick={handleDelete}>削除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

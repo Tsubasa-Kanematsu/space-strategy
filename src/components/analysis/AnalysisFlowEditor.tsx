@@ -4,6 +4,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import { PHASE_META } from '../../types/vehicleUnit';
 import { MasterSelectModal } from './MasterSelectModal';
+import { ConditionsModal } from './ConditionsModal';
 import type { AnalysisFlow } from '../../types';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
@@ -213,6 +214,7 @@ export const AnalysisFlowEditor: React.FC = () => {
   const [nameDraft, setNameDraft] = useState(flow?.name ?? '');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showMasterModal, setShowMasterModal] = useState(false);
+  const [conditionsCaseId, setConditionsCaseId] = useState<string | null>(null);
 
   if (!flow) {
     return (
@@ -251,7 +253,7 @@ export const AnalysisFlowEditor: React.FC = () => {
     ? Object.values(ownerPs.masterSelections).reduce((n, a) => n + (a?.length ?? 0), 0)
     : 0;
 
-  // ② 機体諸元（条件設定）を開く（無ければ作成）
+  // ② 機体諸元（条件設定）を開く（無ければ作成）。画面遷移せずモーダルで編集。
   const openConditions = () => {
     if (!ownerUnit || !ownerPhase) return;
     const ps = ownerPhase === 'PT' ? ownerUnit.pt : ownerUnit.ft;
@@ -261,7 +263,7 @@ export const AnalysisFlowEditor: React.FC = () => {
       mc = c.id;
       updatePhase(ownerUnit.id, ownerPhase, { massCaseId: mc });
     }
-    navigate('massModel', { projectId: ownerUnit.projectId, massCaseId: mc });
+    setConditionsCaseId(mc);
   };
 
   return (
@@ -349,6 +351,15 @@ export const AnalysisFlowEditor: React.FC = () => {
 
       {showMasterModal && ownerUnit && ownerPhase && (
         <MasterSelectModal unit={ownerUnit} phase={ownerPhase} onClose={() => setShowMasterModal(false)} />
+      )}
+
+      {conditionsCaseId && ownerUnit && ownerPhase && (
+        <ConditionsModal
+          projectId={ownerUnit.projectId}
+          massCaseId={conditionsCaseId}
+          title={`${ownerUnit.unitNo}号機 ${PHASE_META[ownerPhase].label} 機体諸元`}
+          onClose={() => setConditionsCaseId(null)}
+        />
       )}
     </div>
   );

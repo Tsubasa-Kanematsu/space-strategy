@@ -1091,6 +1091,31 @@ export function loadSampleData(): void {
     memo: '姿勢制御スラスタ。',
   });
 
+  // ── 機体形状
+  masterStore.addShape({ name: 'LV-Alpha', lengthM: 24.5, maxDiameterM: 1.8, stages: 2, noseCone: 'フォン・カルマン', refAreaM2: 2.545, memo: '' });
+  masterStore.addShape({ name: 'LV-Beta (3段型)', lengthM: 32.0, maxDiameterM: 2.2, stages: 3, noseCone: 'タンジェントオージャイブ', refAreaM2: 3.801, memo: '' });
+  masterStore.addShape({ name: 'イプシロンS相当', lengthM: 27.2, maxDiameterM: 2.5, stages: 3, noseCone: 'フォン・カルマン', refAreaM2: 4.909, memo: '' });
+
+  // ── 空力係数
+  masterStore.addAeroCoeff({ name: 'LV-Alpha 空力係数', cdSubsonic: 0.32, cdTransonicPeak: 0.58, cdSupersonic: 0.30, clAlpha: 2.6, memo: '亜音速～超音速の代表値。' });
+  masterStore.addAeroCoeff({ name: 'LV-Beta (3段型) 空力係数', cdSubsonic: 0.35, cdTransonicPeak: 0.61, cdSupersonic: 0.33, clAlpha: 2.9, memo: '' });
+
+  // ── 風
+  masterStore.addWind({ name: '大樹町・年間代表', site: '大樹町射場', maxSpeedMs: 62, maxSpeedAltKm: 12, dirDeg: 255, memo: 'ジェット気流帯で最大。' });
+  masterStore.addWind({ name: '大樹町・冬季', site: '大樹町射場', maxSpeedMs: 78, maxSpeedAltKm: 11, dirDeg: 260, memo: '冬季の強風条件。' });
+
+  // ── 故障率
+  masterStore.addFailureRate({ name: '推進系（1段）', failureRate: 8.0e-3, mode: '燃焼異常・配管破断', phase: '1段燃焼', memo: '' });
+  masterStore.addFailureRate({ name: '推進系（2段）', failureRate: 5.0e-3, mode: '着火失敗・推力低下', phase: '2段燃焼', memo: '' });
+  masterStore.addFailureRate({ name: '誘導制御 (GNC)', failureRate: 3.0e-3, mode: '姿勢制御喪失・経路逸脱', phase: '全フェーズ', memo: '' });
+  masterStore.addFailureRate({ name: '飛行終了系 (FTS)', failureRate: 1.0e-4, mode: '指令破壊不能', phase: '全フェーズ', memo: '' });
+
+  // ── 代表破片
+  masterStore.addDebris({ name: 'エンジン', massKg: 180, areaM2: 0.6, cd: 0.9, material: '金属', memo: '' });
+  masterStore.addDebris({ name: 'タンクドーム', massKg: 45, areaM2: 1.2, cd: 1.1, material: 'アルミ合金', memo: '' });
+  masterStore.addDebris({ name: 'アビオ筐体', massKg: 12, areaM2: 0.25, cd: 0.8, material: '複合材', memo: '' });
+  masterStore.addDebris({ name: 'フェアリング片', massKg: 8, areaM2: 0.9, cd: 1.3, material: 'CFRP', memo: '' });
+
   // ════════════════════════════════════════
   // 号機（運用フェーズ） — LV-Alpha の各フライト
   // ════════════════════════════════════════
