@@ -203,7 +203,9 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(DIST, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`space-strategy server listening on :${PORT}`);
+// 明示的に 0.0.0.0 で待受（Render の内部ヘルスチェックは IPv4 で叩くため、
+// Node 既定の IPv6(::) 単独待受だと /healthz がタイムアウトすることがある）。
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`space-strategy server listening on 0.0.0.0:${PORT}`);
   console.log(`  data dir: ${DATA_DIR}`);
 });
