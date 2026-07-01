@@ -1100,15 +1100,40 @@ export function loadSampleData(): void {
   masterStore.addAeroCoeff({ name: 'LV-Alpha 空力係数', cdSubsonic: 0.32, cdTransonicPeak: 0.58, cdSupersonic: 0.30, clAlpha: 2.6, memo: '亜音速～超音速の代表値。' });
   masterStore.addAeroCoeff({ name: 'LV-Beta (3段型) 空力係数', cdSubsonic: 0.35, cdTransonicPeak: 0.61, cdSupersonic: 0.33, clAlpha: 2.9, memo: '' });
 
-  // ── 風
-  masterStore.addWind({ name: '大樹町・年間代表', site: '大樹町射場', maxSpeedMs: 62, maxSpeedAltKm: 12, dirDeg: 255, memo: 'ジェット気流帯で最大。' });
-  masterStore.addWind({ name: '大樹町・冬季', site: '大樹町射場', maxSpeedMs: 78, maxSpeedAltKm: 11, dirDeg: 260, memo: '冬季の強風条件。' });
+  // ── 風（1プロファイル＝高度ごとの風向・風速のリスト）
+  masterStore.addWind({
+    name: '大樹町・年間代表', site: '大樹町射場', memo: 'ジェット気流帯（約12km）で最大。',
+    layers: [
+      { altitudeKm: 0, dirDeg: 240, speedMs: 8 },
+      { altitudeKm: 4, dirDeg: 250, speedMs: 22 },
+      { altitudeKm: 8, dirDeg: 255, speedMs: 40 },
+      { altitudeKm: 12, dirDeg: 255, speedMs: 62 },
+      { altitudeKm: 16, dirDeg: 260, speedMs: 35 },
+      { altitudeKm: 20, dirDeg: 270, speedMs: 18 },
+    ],
+  });
+  masterStore.addWind({
+    name: '大樹町・冬季', site: '大樹町射場', memo: '冬季の強風条件。',
+    layers: [
+      { altitudeKm: 0, dirDeg: 250, speedMs: 12 },
+      { altitudeKm: 4, dirDeg: 255, speedMs: 30 },
+      { altitudeKm: 8, dirDeg: 258, speedMs: 55 },
+      { altitudeKm: 11, dirDeg: 260, speedMs: 78 },
+      { altitudeKm: 16, dirDeg: 265, speedMs: 44 },
+      { altitudeKm: 20, dirDeg: 275, speedMs: 22 },
+    ],
+  });
 
-  // ── 故障率
-  masterStore.addFailureRate({ name: '推進系（1段）', failureRate: 8.0e-3, mode: '燃焼異常・配管破断', phase: '1段燃焼', memo: '' });
-  masterStore.addFailureRate({ name: '推進系（2段）', failureRate: 5.0e-3, mode: '着火失敗・推力低下', phase: '2段燃焼', memo: '' });
-  masterStore.addFailureRate({ name: '誘導制御 (GNC)', failureRate: 3.0e-3, mode: '姿勢制御喪失・経路逸脱', phase: '全フェーズ', memo: '' });
-  masterStore.addFailureRate({ name: '飛行終了系 (FTS)', failureRate: 1.0e-4, mode: '指令破壊不能', phase: '全フェーズ', memo: '' });
+  // ── 故障率（1セット＝サブシステム行のリストでワンセット）
+  masterStore.addFailureRate({
+    name: '標準故障率セット', memo: '設計基準の代表値。',
+    subsystems: [
+      { name: '推進系（1段）', failureRate: 8.0e-3, mode: '燃焼異常・配管破断', phase: '1段燃焼' },
+      { name: '推進系（2段）', failureRate: 5.0e-3, mode: '着火失敗・推力低下', phase: '2段燃焼' },
+      { name: '誘導制御 (GNC)', failureRate: 3.0e-3, mode: '姿勢制御喪失・経路逸脱', phase: '全フェーズ' },
+      { name: '飛行終了系 (FTS)', failureRate: 1.0e-4, mode: '指令破壊不能', phase: '全フェーズ' },
+    ],
+  });
 
   // ── 代表破片
   masterStore.addDebris({ name: 'エンジン', massKg: 180, areaM2: 0.6, cd: 0.9, material: '金属', memo: '' });

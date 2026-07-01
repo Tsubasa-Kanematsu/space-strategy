@@ -70,27 +70,38 @@ export interface AeroCoeffMaster {
   updatedAt: string;
 }
 
-/** 風データマスタ（代表プロファイル）。 */
+/** 風プロファイルの1層（高度ごとの風向・風速）。 */
+export interface WindLayer {
+  altitudeKm: number | null;  // 高度 (km)
+  dirDeg: number | null;      // 風向 (deg)
+  speedMs: number | null;     // 風速 (m/s)
+}
+
+/** 風データマスタ（1レコード＝1プロファイル。高度ごとの風向・風速のリスト）。 */
 export interface WindMaster {
   id: string;
   name: string;
-  site: string;                 // 射場
-  maxSpeedMs: number | null;    // 最大風速 (m/s)
-  maxSpeedAltKm: number | null; // 最大風速高度 (km)
-  dirDeg: number | null;        // 代表風向 (deg)
+  site: string;               // 射場
   memo: string;
+  layers: WindLayer[];        // 高度ごとの風向・風速
   createdAt: string;
   updatedAt: string;
 }
 
-/** 故障率マスタ（サブシステム別）。 */
-export interface FailureRateMaster {
-  id: string;
+/** 故障率セットの1行（サブシステム別）。 */
+export interface FailureRow {
   name: string;                // サブシステム
   failureRate: number | null;  // 故障率 (/flight)
   mode: string;                // 代表故障モード
   phase: string;               // 発生フェーズ
+}
+
+/** 故障率マスタ（1レコード＝1セット。サブシステム行のリストでワンセット）。 */
+export interface FailureRateMaster {
+  id: string;
+  name: string;                // セット名
   memo: string;
+  subsystems: FailureRow[];    // サブシステム別 故障率（このセットで1組）
   createdAt: string;
   updatedAt: string;
 }

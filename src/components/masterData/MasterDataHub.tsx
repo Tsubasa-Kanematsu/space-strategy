@@ -24,6 +24,22 @@ export const MasterDataHub: React.FC = () => {
   const md = FEATURE_FLAGS.masterData as Record<string, boolean | undefined>;
   const cards: HubCard[] = [
     {
+      label: '質量諸元データ',
+      description: 'コンポーネント構成・質量・重心・慣性テンソルのケースを管理',
+      icon: 'box-seam',
+      view: 'massCases' as AppView,
+      accent: '#2563eb',
+      enabled: () => true,
+    },
+    {
+      label: '誤差源データ',
+      description: 'コンポーネント別の誤差源 (3σ値)。飛行安全・分散解析の入力',
+      icon: 'exclamation-diamond',
+      view: 'errorSourceData' as AppView,
+      accent: '#d97706',
+      enabled: () => true,
+    },
+    {
       label: '地上局アンテナデータ',
       description: '地上局アンテナのスペック (利得・G/T・周波数等) を管理',
       icon: 'broadcast-pin',

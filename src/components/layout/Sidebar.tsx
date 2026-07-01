@@ -3,7 +3,6 @@ import { useAppStore } from '../../stores/appStore';
 import { useVehicleUnitStore } from '../../stores/vehicleUnitStore';
 import type { AppView } from '../../types';
 import { useFlags } from '../../stores/featureFlagsStore';
-import { sectionOf, openInNewWindow, type NavSection } from '../../lib/nav';
 
 // 「解析」 1 アイテムから analysisHub に入り、ハブ内のカードで各サービスを開く形に統一。
 // なので解析関連の全 view はサイドバーの 「解析」 ハイライト対象として扱う。
@@ -18,14 +17,15 @@ const ANALYSIS_LIKE_VIEWS: AppView[] = [
 // プロジェクト（号機一覧・号機詳細・トレーサビリティ等）配下の view
 const PROJECT_LIKE_VIEWS: AppView[] = [
   'projects', 'vehicleUnits', 'vehicleUnitDetail', 'traceability',
-  'massCases', 'massModel', 'parameters',
-  'rocketShapeData', 'propulsionData', 'debrisShapeData', 'errorSourceData',
+  'massModel', 'parameters',
+  'rocketShapeData', 'propulsionData', 'debrisShapeData',
 ];
 
-// マスタデータ配下の view
+// マスタデータ配下の view（質量諸元・誤差源もマスタデータ扱い）
 const MASTER_LIKE_VIEWS: AppView[] = [
   'masterDataHub', 'antennaData', 'shapeMaster', 'aeroCoeffMaster', 'debrisMaster',
   'groundAntennaData', 'vehicleAntennaData', 'propulsionMaster', 'windMaster', 'failureRateMaster',
+  'massCases', 'errorSourceData',
 ];
 
 // 申請書配下の view
@@ -47,13 +47,8 @@ export const Sidebar: React.FC = () => {
   const isMasterActive = MASTER_LIKE_VIEWS.includes(view);
   const isApplicationActive = APPLICATION_LIKE_VIEWS.includes(view);
 
-  // 現在の括り（号機由来の解析フローは project 扱い）。括りを跨ぐ遷移は新規ウィンドウ。
-  const currentSection: NavSection =
-    view === 'analysisFlowDetail' && flowOwnedByUnit ? 'project' : sectionOf(view);
-  const go = (target: AppView) => {
-    if (currentSection === sectionOf(target)) navigate(target);
-    else openInNewWindow(target);
-  };
+  // ナビゲーションバーの遷移は常に同一ウィンドウ（新規ウィンドウにしない）。
+  const go = (target: AppView) => navigate(target);
 
   return (
     <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>

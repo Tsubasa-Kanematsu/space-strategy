@@ -1,30 +1,26 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { useMasterDataStore } from '../../stores/masterDataStore';
-import type { FailureRateMaster } from '../../types';
+import type { FailureRateMaster, FailureRow } from '../../types';
 
 /**
- * 故障率マスタ。サブシステム別の故障率・代表故障モードを設定（追加/編集/削除）し、解析で参照する。
+ * 故障率マスタ。サブシステム別の故障率・代表故障モードを1セットとしてまとめ
+ * （追加/編集/削除）、解析で参照する。1レコード＝1セット。
  */
 
-interface FormState {
+interface DraftState {
   name: string;
-  failureRate: string;
-  mode: string;
-  phase: string;
   memo: string;
+  subsystems: FailureRow[];
 }
 
-const emptyForm = (): FormState => ({
-  name: '', failureRate: '', mode: '', phase: '', memo: '',
-});
+const emptyDraft = (): DraftState => ({ name: '', memo: '', subsystems: [] });
 
 const toNum = (s: string): number | null => {
+  if (s.trim() === '') return null;
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
 };
-
-const rateCell = (v: number | null) => (v !== null ? v.toExponential(1) : <span className="text-muted">—</span>);
 
 export const FailureRateMasterView: React.FC = () => {
   const navigate = useAppStore((s) => s.navigate);
@@ -35,30 +31,35 @@ export const FailureRateMasterView: React.FC = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<FailureRateMaster | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm());
+  const [draft, setDraft] = useState<DraftState>(emptyDraft());
   const [confirmDelete, setConfirmDelete] = useState<FailureRateMaster | null>(null);
 
-  const openCreate = () => { setEditTarget(null); setForm(emptyForm()); setShowModal(true); };
+  const openCreate = () => { setEditTarget(null); setDraft(emptyDraft()); setShowModal(true); };
   const openEdit = (x: FailureRateMaster) => {
     setEditTarget(x);
-    setForm({
+    setDraft({
       name: x.name,
-      failureRate: x.failureRate?.toString() ?? '',
-      mode: x.mode,
-      phase: x.phase,
       memo: x.memo,
+      subsystems: x.subsystems.map((r) => ({ ...r })),
     });
     setShowModal(true);
   };
 
+  const addRow = () =>
+    setDraft((d) => ({ ...d, subsystems: [...d.subsystems, { name: '', failureRate: null, mode: '', phase: '' }] }));
+
+  const removeRow = (idx: number) =>
+    setDraft((d) => ({ ...d, subsystems: d.subsystems.filter((_, i) => i !== idx) }));
+
+  const updateRow = (idx: number, patch: Partial<FailureRow>) =>
+    setDraft((d) => ({ ...d, subsystems: d.subsystems.map((r, i) => i === idx ? { ...r, ...patch } : r) }));
+
   const handleSave = () => {
-    if (!form.name.trim()) return;
+    if (!draft.name.trim()) return;
     const data = {
-      name: form.name.trim(),
-      failureRate: toNum(form.failureRate),
-      mode: form.mode,
-      phase: form.phase,
-      memo: form.memo,
+      name: draft.name.trim(),
+      memo: draft.memo,
+      subsystems: draft.subsystems,
     };
     if (editTarget) updateFailureRate(editTarget.id, data);
     else addFailureRate(data);
@@ -86,7 +87,7 @@ export const FailureRateMasterView: React.FC = () => {
         </button>
       </div>
       <p className="text-muted small mb-3">
-        サブシステム別の故障率（/flight）・代表故障モード・発生フェーズを設定します。飛行安全解析・信頼性解析の入力として参照します。
+        サブシステム別の故障率（/flight）・代表故障モード・発生フェーズを1セットとして設定します。飛行安全解析・信頼性解析の入力として参照します。
       </p>
 
       <div className="card">
@@ -94,21 +95,19 @@ export const FailureRateMasterView: React.FC = () => {
           <table className="table table-hover mb-0 align-middle">
             <thead>
               <tr>
-                <th>サブシステム</th>
-                <th className="text-end">故障率 (/flight)</th>
-                <th>代表故障モード</th>
-                <th>発生フェーズ</th>
+                <th>セット名</th>
+                <th className="text-end">サブシステム数</th>
                 <th className="col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
               {failureRates.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center text-muted py-5">
+                  <td colSpan={3} className="text-center text-muted py-5">
                     <i className="bi bi-exclamation-triangle fs-3 d-block mb-2 opacity-25" />
                     <div>故障率データがありません</div>
                     <button className="btn btn-primary btn-sm mt-2" onClick={openCreate}>
-                      <i className="bi bi-plus-lg me-1" />最初のサブシステムを登録
+                      <i className="bi bi-plus-lg me-1" />最初のセットを登録
                     </button>
                   </td>
                 </tr>
@@ -116,9 +115,7 @@ export const FailureRateMasterView: React.FC = () => {
                 failureRates.map((x) => (
                   <tr key={x.id}>
                     <td className="fw-medium">{x.name}</td>
-                    <td className="text-end font-monospace">{rateCell(x.failureRate)}</td>
-                    <td>{x.mode || '—'}</td>
-                    <td>{x.phase || '—'}</td>
+                    <td className="text-end font-monospace">{x.subsystems.length}</td>
                     <td className="col-actions">
                       <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => openEdit(x)} title="編集">
                         <i className="bi bi-pencil" />
@@ -141,36 +138,81 @@ export const FailureRateMasterView: React.FC = () => {
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title"><i className="bi bi-exclamation-triangle me-2" />{editTarget ? '故障率編集' : '新規故障率登録'}</h5>
+                <h5 className="modal-title"><i className="bi bi-exclamation-triangle me-2" />{editTarget ? '故障率セット編集' : '新規故障率セット登録'}</h5>
                 <button className="btn-close" onClick={() => setShowModal(false)} />
               </div>
               <div className="modal-body">
                 <div className="row g-3">
                   <div className="col-md-6">
-                    <label className="form-label fw-medium">サブシステム <span className="text-danger">*</span></label>
-                    <input className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例: 1段推進系" autoFocus />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-medium">故障率 (/flight)</label>
-                    <input type="number" step="any" className="form-control" value={form.failureRate} onChange={(e) => setForm({ ...form, failureRate: e.target.value })} placeholder="例: 1e-3" />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-medium">代表故障モード</label>
-                    <input className="form-control" value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })} placeholder="例: 燃焼室破損" />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-medium">発生フェーズ</label>
-                    <input className="form-control" value={form.phase} onChange={(e) => setForm({ ...form, phase: e.target.value })} placeholder="例: 1段燃焼中" />
+                    <label className="form-label fw-medium">セット名 <span className="text-danger">*</span></label>
+                    <input className="form-control" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="例: ZERO 標準故障率セット" autoFocus />
                   </div>
                   <div className="col-12">
                     <label className="form-label fw-medium">メモ</label>
-                    <textarea className="form-control" rows={2} value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
+                    <textarea className="form-control" rows={2} value={draft.memo} onChange={(e) => setDraft({ ...draft, memo: e.target.value })} />
+                  </div>
+
+                  <div className="col-12">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <label className="form-label fw-medium mb-0">サブシステム</label>
+                      <button className="btn btn-sm btn-outline-primary" onClick={addRow}>
+                        <i className="bi bi-plus-lg me-1" />サブシステムを追加
+                      </button>
+                    </div>
+                    <div className="table-responsive">
+                      <table className="table table-sm align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th>サブシステム</th>
+                            <th className="text-end">故障率 (/flight)</th>
+                            <th>代表故障モード</th>
+                            <th>発生フェーズ</th>
+                            <th className="col-actions" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {draft.subsystems.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="text-center text-muted small py-3">
+                                サブシステムがありません。「サブシステムを追加」で行を登録します。
+                              </td>
+                            </tr>
+                          ) : (
+                            draft.subsystems.map((r, idx) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input className="form-control form-control-sm"
+                                    value={r.name} onChange={(e) => updateRow(idx, { name: e.target.value })} placeholder="例: 1段推進系" />
+                                </td>
+                                <td>
+                                  <input type="number" step="any" className="form-control form-control-sm text-end font-monospace"
+                                    value={r.failureRate ?? ''} onChange={(e) => updateRow(idx, { failureRate: toNum(e.target.value) })} placeholder="例: 1e-3" />
+                                </td>
+                                <td>
+                                  <input className="form-control form-control-sm"
+                                    value={r.mode} onChange={(e) => updateRow(idx, { mode: e.target.value })} placeholder="例: 燃焼室破損" />
+                                </td>
+                                <td>
+                                  <input className="form-control form-control-sm"
+                                    value={r.phase} onChange={(e) => updateRow(idx, { phase: e.target.value })} placeholder="例: 1段燃焼中" />
+                                </td>
+                                <td className="col-actions">
+                                  <button className="btn btn-sm btn-outline-danger" onClick={() => removeRow(idx)} title="行を削除">
+                                    <i className="bi bi-trash" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowModal(false)}>キャンセル</button>
-                <button className="btn btn-primary" onClick={handleSave} disabled={!form.name.trim()}>{editTarget ? '保存' : '登録'}</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={!draft.name.trim()}>{editTarget ? '保存' : '登録'}</button>
               </div>
             </div>
           </div>

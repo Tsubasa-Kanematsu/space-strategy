@@ -1,31 +1,42 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { useMasterDataStore } from '../../stores/masterDataStore';
-import type { WindMaster } from '../../types';
+import type { WindMaster, WindLayer } from '../../types';
 
 /**
- * 風データマスタ。射場ごとの代表風プロファイルを設定（追加/編集/削除）し、解析で参照する。
+ * 風データマスタ。射場ごとの代表風プロファイル（高度ごとの風向・風速のリスト）を
+ * 設定（追加/編集/削除）し、解析で参照する。1レコード＝1プロファイル。
  */
 
-interface FormState {
+interface DraftState {
   name: string;
   site: string;
-  maxSpeedMs: string;
-  maxSpeedAltKm: string;
-  dirDeg: string;
   memo: string;
+  layers: WindLayer[];
 }
 
-const emptyForm = (): FormState => ({
-  name: '', site: '', maxSpeedMs: '', maxSpeedAltKm: '', dirDeg: '', memo: '',
-});
+const emptyDraft = (): DraftState => ({ name: '', site: '', memo: '', layers: [] });
 
 const toNum = (s: string): number | null => {
+  if (s.trim() === '') return null;
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
 };
 
 const numCell = (v: number | null) => (v !== null ? v : <span className="text-muted">—</span>);
+
+const maxSpeed = (layers: WindLayer[]): number | null => {
+  const speeds = layers.map((l) => l.speedMs).filter((v): v is number => v !== null);
+  return speeds.length > 0 ? Math.max(...speeds) : null;
+};
+
+const sortLayers = (layers: WindLayer[]): WindLayer[] =>
+  [...layers].sort((a, b) => {
+    if (a.altitudeKm === null && b.altitudeKm === null) return 0;
+    if (a.altitudeKm === null) return 1;
+    if (b.altitudeKm === null) return -1;
+    return a.altitudeKm - b.altitudeKm;
+  });
 
 export const WindMasterView: React.FC = () => {
   const navigate = useAppStore((s) => s.navigate);
@@ -36,32 +47,37 @@ export const WindMasterView: React.FC = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<WindMaster | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm());
+  const [draft, setDraft] = useState<DraftState>(emptyDraft());
   const [confirmDelete, setConfirmDelete] = useState<WindMaster | null>(null);
 
-  const openCreate = () => { setEditTarget(null); setForm(emptyForm()); setShowModal(true); };
+  const openCreate = () => { setEditTarget(null); setDraft(emptyDraft()); setShowModal(true); };
   const openEdit = (x: WindMaster) => {
     setEditTarget(x);
-    setForm({
+    setDraft({
       name: x.name,
       site: x.site,
-      maxSpeedMs: x.maxSpeedMs?.toString() ?? '',
-      maxSpeedAltKm: x.maxSpeedAltKm?.toString() ?? '',
-      dirDeg: x.dirDeg?.toString() ?? '',
       memo: x.memo,
+      layers: x.layers.map((l) => ({ ...l })),
     });
     setShowModal(true);
   };
 
+  const addLayer = () =>
+    setDraft((d) => ({ ...d, layers: [...d.layers, { altitudeKm: null, dirDeg: null, speedMs: null }] }));
+
+  const removeLayer = (idx: number) =>
+    setDraft((d) => ({ ...d, layers: d.layers.filter((_, i) => i !== idx) }));
+
+  const updateLayer = (idx: number, patch: Partial<WindLayer>) =>
+    setDraft((d) => ({ ...d, layers: d.layers.map((l, i) => i === idx ? { ...l, ...patch } : l) }));
+
   const handleSave = () => {
-    if (!form.name.trim()) return;
+    if (!draft.name.trim()) return;
     const data = {
-      name: form.name.trim(),
-      site: form.site,
-      maxSpeedMs: toNum(form.maxSpeedMs),
-      maxSpeedAltKm: toNum(form.maxSpeedAltKm),
-      dirDeg: toNum(form.dirDeg),
-      memo: form.memo,
+      name: draft.name.trim(),
+      site: draft.site,
+      memo: draft.memo,
+      layers: sortLayers(draft.layers),
     };
     if (editTarget) updateWind(editTarget.id, data);
     else addWind(data);
@@ -89,7 +105,7 @@ export const WindMasterView: React.FC = () => {
         </button>
       </div>
       <p className="text-muted small mb-3">
-        射場ごとの代表風プロファイル（最大風速・その高度・代表風向）を設定します。飛行解析・荷重解析の入力として参照します。
+        射場ごとの代表風プロファイル（高度ごとの風向・風速）を設定します。飛行解析・荷重解析の入力として参照します。
       </p>
 
       <div className="card">
@@ -99,16 +115,15 @@ export const WindMasterView: React.FC = () => {
               <tr>
                 <th>プロファイル名</th>
                 <th>射場</th>
+                <th className="text-end">層数</th>
                 <th className="text-end">最大風速 (m/s)</th>
-                <th className="text-end">最大風速高度 (km)</th>
-                <th className="text-end">代表風向 (deg)</th>
                 <th className="col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
               {winds.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center text-muted py-5">
+                  <td colSpan={5} className="text-center text-muted py-5">
                     <i className="bi bi-tornado fs-3 d-block mb-2 opacity-25" />
                     <div>風データがありません</div>
                     <button className="btn btn-primary btn-sm mt-2" onClick={openCreate}>
@@ -121,9 +136,8 @@ export const WindMasterView: React.FC = () => {
                   <tr key={x.id}>
                     <td className="fw-medium">{x.name}</td>
                     <td>{x.site || '—'}</td>
-                    <td className="text-end font-monospace">{numCell(x.maxSpeedMs)}</td>
-                    <td className="text-end font-monospace">{numCell(x.maxSpeedAltKm)}</td>
-                    <td className="text-end font-monospace">{numCell(x.dirDeg)}</td>
+                    <td className="text-end font-monospace">{x.layers.length}</td>
+                    <td className="text-end font-monospace">{numCell(maxSpeed(x.layers))}</td>
                     <td className="col-actions">
                       <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => openEdit(x)} title="編集">
                         <i className="bi bi-pencil" />
@@ -153,33 +167,73 @@ export const WindMasterView: React.FC = () => {
                 <div className="row g-3">
                   <div className="col-md-6">
                     <label className="form-label fw-medium">プロファイル名 <span className="text-danger">*</span></label>
-                    <input className="form-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="例: 大樹町 夏季代表風" autoFocus />
+                    <input className="form-control" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="例: 大樹町 夏季代表風" autoFocus />
                   </div>
                   <div className="col-md-6">
                     <label className="form-label fw-medium">射場</label>
-                    <input className="form-control" value={form.site} onChange={(e) => setForm({ ...form, site: e.target.value })} placeholder="例: 大樹町" />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label fw-medium">最大風速 (m/s)</label>
-                    <input type="number" step="0.1" className="form-control" value={form.maxSpeedMs} onChange={(e) => setForm({ ...form, maxSpeedMs: e.target.value })} placeholder="例: 45" />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label fw-medium">最大風速高度 (km)</label>
-                    <input type="number" step="0.1" className="form-control" value={form.maxSpeedAltKm} onChange={(e) => setForm({ ...form, maxSpeedAltKm: e.target.value })} placeholder="例: 12" />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label fw-medium">代表風向 (deg)</label>
-                    <input type="number" step="1" className="form-control" value={form.dirDeg} onChange={(e) => setForm({ ...form, dirDeg: e.target.value })} placeholder="例: 270" />
+                    <input className="form-control" value={draft.site} onChange={(e) => setDraft({ ...draft, site: e.target.value })} placeholder="例: 大樹町" />
                   </div>
                   <div className="col-12">
                     <label className="form-label fw-medium">メモ</label>
-                    <textarea className="form-control" rows={2} value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
+                    <textarea className="form-control" rows={2} value={draft.memo} onChange={(e) => setDraft({ ...draft, memo: e.target.value })} />
+                  </div>
+
+                  <div className="col-12">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <label className="form-label fw-medium mb-0">高度プロファイル</label>
+                      <button className="btn btn-sm btn-outline-primary" onClick={addLayer}>
+                        <i className="bi bi-plus-lg me-1" />層を追加
+                      </button>
+                    </div>
+                    <div className="table-responsive">
+                      <table className="table table-sm align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th className="text-end">高度 (km)</th>
+                            <th className="text-end">風向 (deg)</th>
+                            <th className="text-end">風速 (m/s)</th>
+                            <th className="col-actions" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {draft.layers.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="text-center text-muted small py-3">
+                                層がありません。「層を追加」で高度ごとの風を登録します。
+                              </td>
+                            </tr>
+                          ) : (
+                            draft.layers.map((l, idx) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input type="number" step="any" className="form-control form-control-sm text-end font-monospace"
+                                    value={l.altitudeKm ?? ''} onChange={(e) => updateLayer(idx, { altitudeKm: toNum(e.target.value) })} />
+                                </td>
+                                <td>
+                                  <input type="number" step="any" className="form-control form-control-sm text-end font-monospace"
+                                    value={l.dirDeg ?? ''} onChange={(e) => updateLayer(idx, { dirDeg: toNum(e.target.value) })} />
+                                </td>
+                                <td>
+                                  <input type="number" step="any" className="form-control form-control-sm text-end font-monospace"
+                                    value={l.speedMs ?? ''} onChange={(e) => updateLayer(idx, { speedMs: toNum(e.target.value) })} />
+                                </td>
+                                <td className="col-actions">
+                                  <button className="btn btn-sm btn-outline-danger" onClick={() => removeLayer(idx)} title="行を削除">
+                                    <i className="bi bi-trash" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowModal(false)}>キャンセル</button>
-                <button className="btn btn-primary" onClick={handleSave} disabled={!form.name.trim()}>{editTarget ? '保存' : '登録'}</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={!draft.name.trim()}>{editTarget ? '保存' : '登録'}</button>
               </div>
             </div>
           </div>

@@ -242,7 +242,7 @@ export const AnalysisFlowEditor: React.FC = () => {
   };
 
   return (
-    <div>
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
       {/* 全解析の共通パラメータ（号機フェーズのフローのみ）。選択サマリのみ表示し、
           各行の「変更」でモーダルから選択を変更（質量諸元・誤差源もマスタデータ扱い）。 */}
       {ownerUnit && ownerPhase && (
