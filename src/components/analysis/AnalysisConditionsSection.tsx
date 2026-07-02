@@ -187,14 +187,58 @@ export const AnalysisConditionModal: React.FC<{ flow: AnalysisFlow; stepId: stri
             <button className="btn-close" onClick={onClose} />
           </div>
           {isCustom && step ? (
-            /* カスタム解析: 名前・メモを設定（サービス種別なし） */
+            /* カスタム解析: 名前・条件パラメータ・メモをこの画面で設定 */
             <div className="modal-body">
-              <p className="text-muted small mb-3">カスタム解析ステップです。名称と内容メモを設定できます（サービス固有の条件はありません）。</p>
+              <p className="text-muted small mb-3">カスタム解析ステップです。名称・条件パラメータ・内容メモをここで設定できます。</p>
               <label className="form-label small fw-medium mb-1">解析名</label>
               <input className="form-control form-control-sm mb-3" value={step.label}
                 onChange={(e) => updateStep(flow.id, step.id, { label: e.target.value })} />
+
+              <div className="d-flex align-items-center mb-1">
+                <label className="form-label small fw-medium mb-0">条件パラメータ</label>
+                <button
+                  className="btn btn-sm btn-outline-primary ms-auto py-0"
+                  onClick={() => updateStep(flow.id, step.id, { customParams: [...(step.customParams ?? []), { key: '', value: '' }] })}
+                >
+                  <i className="bi bi-plus-lg me-1" />追加
+                </button>
+              </div>
+              {(step.customParams ?? []).length === 0 ? (
+                <div className="text-muted small border rounded-2 px-2 py-2 mb-3">パラメータがありません。「追加」で任意の条件（名称と値）を登録できます。</div>
+              ) : (
+                <table className="table table-sm align-middle mb-3">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40%' }}>パラメータ</th>
+                      <th>値</th>
+                      <th style={{ width: 40 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(step.customParams ?? []).map((p, i) => (
+                      <tr key={i}>
+                        <td>
+                          <input className="form-control form-control-sm" value={p.key} placeholder="例: 突入角"
+                            onChange={(e) => updateStep(flow.id, step.id, { customParams: (step.customParams ?? []).map((x, j) => j === i ? { ...x, key: e.target.value } : x) })} />
+                        </td>
+                        <td>
+                          <input className="form-control form-control-sm" value={p.value} placeholder="例: -1.5 deg"
+                            onChange={(e) => updateStep(flow.id, step.id, { customParams: (step.customParams ?? []).map((x, j) => j === i ? { ...x, value: e.target.value } : x) })} />
+                        </td>
+                        <td>
+                          <button className="btn btn-sm btn-link text-danger p-0" title="削除"
+                            onClick={() => updateStep(flow.id, step.id, { customParams: (step.customParams ?? []).filter((_, j) => j !== i) })}>
+                            <i className="bi bi-trash" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
               <label className="form-label small fw-medium mb-1">内容メモ（手順・想定・エビデンス等）</label>
-              <textarea className="form-control form-control-sm" rows={5} value={step.notes}
+              <textarea className="form-control form-control-sm" rows={4} value={step.notes}
                 onChange={(e) => updateStep(flow.id, step.id, { notes: e.target.value })} />
             </div>
           ) : service && caseId ? (

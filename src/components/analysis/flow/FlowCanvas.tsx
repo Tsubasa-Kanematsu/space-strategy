@@ -4,7 +4,6 @@ import {
   Background,
   BackgroundVariant,
   Controls,
-  MiniMap,
   useNodesState,
   useEdgesState,
   type Connection,
@@ -274,7 +273,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
     <div
       style={{
         display: 'flex',
-        height: 520,
+        height: 'min(78vh, 900px)',
+        minHeight: 560,
         border: '1px solid #e9ecef',
         borderRadius: 8,
         overflow: 'hidden',
@@ -350,7 +350,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
           onPaneClick={() => { setSelectedStepId(null); closeContextMenu(); }}
           isValidConnection={isValidConnection}
           fitView
-          fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
+          fitViewOptions={{ padding: 0.12, maxZoom: 1.4 }}
           deleteKeyCode="Delete"
           multiSelectionKeyCode="Shift"
           defaultEdgeOptions={{
@@ -365,18 +365,6 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
             color="#e2e8f0"
           />
           <Controls showInteractive={false} />
-          <MiniMap
-            nodeStrokeColor="#94a3b8"
-            nodeColor={(node) => {
-              const n = node as FlowStepNodeType;
-              return n.data.status === 'done'
-                ? '#bbf7d0'
-                : n.data.status === 'in_progress'
-                ? '#fde68a'
-                : '#f1f5f9';
-            }}
-            style={{ background: '#f8fafc', border: '1px solid #e9ecef' }}
-          />
         </ReactFlow>
       </div>
 
