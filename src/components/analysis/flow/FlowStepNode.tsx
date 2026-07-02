@@ -52,22 +52,20 @@ const FlowStepNode = memo(({ data, selected }: NodeProps<FlowStepNodeType>) => {
       }}
     >
       {/* 接続ハンドル (上下=フォワード, 左右=ループ。ループハンドルは判定ステップのみ可視) */}
+      {/* 上ハンドルは横フローでは使わない（非表示） */}
       <Handle
         type="target"
         position={Position.Top}
         id="top"
-        style={{ background: '#94a3b8', width: 8, height: 8, border: 'none' }}
-        isConnectable={true}
+        style={{ opacity: 0, pointerEvents: 'none', width: 1, height: 1, border: 'none' }}
+        isConnectable={false}
       />
+      {/* 前段からの入力（横フロー: 左） */}
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        style={{
-          background: '#f59e0b', width: 8, height: 8, border: 'none', top: '65%',
-          opacity: isDecision || data.loopInLabels?.length ? 1 : 0,
-          pointerEvents: isDecision || data.loopInLabels?.length ? 'auto' : 'none',
-        }}
+        style={{ background: '#94a3b8', width: 9, height: 9, border: '2px solid #fff' }}
         isConnectable={true}
       />
 
@@ -174,24 +172,21 @@ const FlowStepNode = memo(({ data, selected }: NodeProps<FlowStepNodeType>) => {
         }}
       />
 
-      {/* 接続ハンドル (送信側) */}
+      {/* 下ハンドルは横フローでは使わない（非表示） */}
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        style={{ background: '#94a3b8', width: 8, height: 8, border: 'none' }}
-        isConnectable={true}
+        style={{ opacity: 0, pointerEvents: 'none', width: 1, height: 1, border: 'none' }}
+        isConnectable={false}
       />
+      {/* 後段への出力（横フロー: 右） */}
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        style={{
-          background: '#f59e0b', width: 8, height: 8, border: 'none', top: '65%',
-          opacity: isDecision ? 1 : 0,
-          pointerEvents: isDecision ? 'auto' : 'none',
-        }}
-        isConnectable={isDecision}
+        style={{ background: '#94a3b8', width: 9, height: 9, border: '2px solid #fff' }}
+        isConnectable={true}
       />
     </div>
   );
