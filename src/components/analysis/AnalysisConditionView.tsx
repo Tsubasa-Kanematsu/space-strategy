@@ -632,6 +632,14 @@ export const AnalysisConditionView: React.FC<AnalysisConditionViewProps> = ({
       case 'orbitLifetime':   return <OrbitLifetimeForm cond={cond} onChange={handleConditionChange} />;
       case 'pathRotationRate': return <PathRotationRateForm cond={cond} onChange={handleConditionChange} />;
       case 'gnssSatellite':   return <GnssSatelliteForm cond={cond} onChange={handleConditionChange} />;
+      default:
+        // 汎用フォーム（個別フォーム未定義の解析）: 主要条件を自由記述で保持
+        return (
+          <>
+            <Txt label="評価条件・前提" value={(cond.criteria as string) ?? ''} onChange={(v) => handleConditionChange({ ...cond, criteria: v })} rows={3} placeholder="この解析の評価条件・判定基準・前提を記述" />
+            <Txt label="メモ" value={(cond.memo as string) ?? ''} onChange={(v) => handleConditionChange({ ...cond, memo: v })} rows={2} />
+          </>
+        );
     }
   };
 

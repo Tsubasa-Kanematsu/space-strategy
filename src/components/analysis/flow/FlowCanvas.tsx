@@ -5,7 +5,6 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
-  addEdge,
   useNodesState,
   useEdgesState,
   type Connection,
@@ -124,53 +123,28 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({ flow, projectId, selecte
   // ── 接続バリデーション: フォワード(上下) / ループ(右左) ──────────────────
   // 上下ハンドル: 任意の前向き接続 (サイクルにならない範囲で並列分岐・合流を許可)
   // 右左ハンドル: ループ。判定ステップ (kind='decision') からのみ繋げられる
+  // 右ハンドル(source)→左ハンドル(target) の接続はすべて「後段（フォワード）」として扱う。
+  // ループは線ではなくラベルで表現するため、ここでは forward のみ。
   const isValidConnection = useCallback<IsValidConnection>(
     (connection) => {
       const src = sortedSteps.find((s) => s.id === connection.source);
       const tgt = sortedSteps.find((s) => s.id === connection.target);
       if (!src || !tgt || src.id === tgt.id) return false;
-      const isLoop =
-        connection.sourceHandle === 'right' || connection.targetHandle === 'left';
-      if (isLoop) {
-        // ループ元は判定ステップ限定
-        return src.kind === 'decision';
-      }
-      // フォワード: DAG を保つためサイクル禁止
+      // DAG を保つためサイクル禁止
       return !wouldCreateCycle(src.id, tgt.id, sortedSteps);
     },
     [sortedSteps]
   );
 
-  // ── 接続確定 → ハンドル種別で forward / loop を振り分けて保存 ──────────────
+  // ── 接続確定 → フォワードエッジとして保存 ──────────────────────────────────
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      const isLoop =
-        connection.sourceHandle === 'right' || connection.targetHandle === 'left';
-      if (isLoop) {
-        const src = sortedSteps.find((s) => s.id === connection.source);
-        if (src?.kind !== 'decision') return; // 通常ステップからのループ作成は禁止
-        updateStep(flow.id, connection.source, {
-          loopBackToStepId: connection.target,
-        });
-        setEdges((eds) =>
-          addEdge(
-            {
-              ...connection,
-              type: 'loopEdge',
-              animated: true,
-              deletable: true,
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#f59e0b' },
-            },
-            eds
-          )
-        );
-      } else {
-        addForwardEdge(flow.id, connection.source, connection.target);
-        // Zustand → ReactFlow 同期は useEffect 経由で行われるので setEdges 不要
-      }
+      if (connection.source === connection.target) return;
+      addForwardEdge(flow.id, connection.source, connection.target);
+      // Zustand → ReactFlow 同期は useEffect 経由で行われるので setEdges 不要
     },
-    [flow.id, updateStep, addForwardEdge, setEdges, sortedSteps]
+    [flow.id, addForwardEdge]
   );
 
   // ── エッジ変更（削除含む） → ループ/フォワード両方を Zustand に反映 ────────

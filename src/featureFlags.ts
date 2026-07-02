@@ -33,7 +33,10 @@ export const FEATURE_FLAGS = {
     ablation: true,         // 溶融解析
     orbitLifetime: true,    // 軌道上寿命解析
     pathRotationRate: true, // 経路回転率解析
-    gnssSatellite: true,    // 測位衛星通信解析
+    gnssSatellite: true,    // GNSS可視解析/COLA
+    launchSiteBuilding: true, // 射場内建屋危険解析
+    debrisDragFall: true,   // 破片抗力落下予測域解析
+    gateIncursion: true,    // ゲート侵犯可否
   } satisfies Record<AnalysisServiceType, boolean>,
 
   // ── データベース（号機に紐づくデータ） ────────────────────────────────────────

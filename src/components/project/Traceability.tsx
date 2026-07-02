@@ -35,6 +35,9 @@ const SERVICE_COL: Record<AnalysisServiceType, number> = {
   debrisImpact:     3,
   rfLink:           3,
   ablation:         3,
+  launchSiteBuilding: 3,
+  debrisDragFall:   3,
+  gateIncursion:    4,
 };
 
 const SERVICE_ORDER: Record<AnalysisServiceType, number> = {
@@ -50,6 +53,9 @@ const SERVICE_ORDER: Record<AnalysisServiceType, number> = {
   debrisImpact:     2,
   rfLink:           3,
   ablation:         4,
+  launchSiteBuilding: 5,
+  debrisDragFall:   6,
+  gateIncursion:    7,
 };
 
 const COL_THEME = [

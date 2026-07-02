@@ -1,16 +1,23 @@
 import type { AnalysisServiceType, AppView } from '../../types';
 
 /** 上流解析サービスの依存関係マップ（依存がないサービスはエントリなし） */
+// 上流解析（このサービスの入力となる上位解析）。運用版の飛行安全解析フローに準拠。
+//  飛行解析 → 飛行経路分散解析 → {軌道上寿命→溶融, 海上船舶危険, 地上Ec(Pi/Ec),
+//                                 投棄物落下域, GNSS可視, 射場内建屋危険, RFリンク}
+//  飛行解析 → 経路回転率解析 → 破片抗力落下予測域解析 → ゲート侵犯可否
 export const SERVICE_UPSTREAM: Partial<Record<AnalysisServiceType, AnalysisServiceType>> = {
-  dispersedFlight:  'flightAnalysis',
-  shipHazard:       'dispersedFlight',
-  piEc:             'dispersedFlight',
-  debrisImpact:     'dispersedFlight',
-  rfLink:           'dispersedFlight',
-  orbitLifetime:    'flightAnalysis',
-  ablation:         'orbitLifetime',
-  pathRotationRate: 'flightAnalysis',
-  gnssSatellite:    'flightAnalysis',
+  dispersedFlight:    'flightAnalysis',
+  orbitLifetime:      'dispersedFlight',
+  ablation:           'orbitLifetime',
+  shipHazard:         'dispersedFlight',
+  piEc:               'dispersedFlight',
+  debrisImpact:       'dispersedFlight',
+  gnssSatellite:      'dispersedFlight',
+  launchSiteBuilding: 'dispersedFlight',
+  rfLink:             'dispersedFlight',
+  pathRotationRate:   'flightAnalysis',
+  debrisDragFall:     'pathRotationRate',
+  gateIncursion:      'debrisDragFall',
 };
 
 export type DbSet = 'mass' | 'cg' | 'inertia' | 'material' | 'debris' | 'errorSource' | 'shape' | 'propulsion';
@@ -97,6 +104,9 @@ export const ANALYSIS_MASTER_REFS: Record<AnalysisServiceType, MasterRef[]> = {
   orbitLifetime:    [],
   pathRotationRate: [],
   gnssSatellite:    [MASTER.vAntenna],
+  launchSiteBuilding: [MASTER.debris, MASTER.failure],
+  debrisDragFall:   [MASTER.debris],
+  gateIncursion:    [MASTER.debris],
 };
 
 /** ② 条件設定（機体諸元・解析共通）: 各解析が参照する機体諸元データ（mass/cg/inertia/material/errorSource のみ） */
@@ -113,6 +123,9 @@ export const ANALYSIS_CONDITION_SETS: Record<AnalysisServiceType, DbSet[]> = {
   orbitLifetime:    ['mass'],
   pathRotationRate: ['mass', 'cg', 'inertia'],
   gnssSatellite:    ['mass', 'cg', 'inertia', 'errorSource'],
+  launchSiteBuilding: ['mass', 'errorSource'],
+  debrisDragFall:   ['mass', 'errorSource'],
+  gateIncursion:    ['errorSource'],
 };
 
 /** （旧）DBセット参照。後方互換のため残置。新UIは上の3分類を使う。 */
@@ -129,4 +142,7 @@ export const SERVICE_DB_SETS: Record<AnalysisServiceType, DbSet[]> = {
   orbitLifetime:    ['mass', 'debris'],
   pathRotationRate: ['mass', 'cg', 'inertia'],
   gnssSatellite:    ['mass', 'cg', 'inertia', 'errorSource'],
+  launchSiteBuilding: ['mass', 'errorSource'],
+  debrisDragFall:   ['mass', 'errorSource'],
+  gateIncursion:    ['errorSource'],
 };

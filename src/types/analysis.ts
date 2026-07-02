@@ -10,7 +10,10 @@ export type AnalysisServiceType =
   | 'ablation'
   | 'orbitLifetime'
   | 'pathRotationRate'
-  | 'gnssSatellite';
+  | 'gnssSatellite'
+  | 'launchSiteBuilding'
+  | 'debrisDragFall'
+  | 'gateIncursion';
 
 export interface DataBinding {
   id: string;

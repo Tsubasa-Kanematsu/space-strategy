@@ -22,9 +22,6 @@ import { SERVICE_META, ALL_SERVICES } from '../analysisServiceMeta';
 // 横（左→右）フロー用のレイアウト定数。
 // x = 列（処理の進行方向）、y = 分岐（並列は上下にオフセット）
 const COL_W = 300;      // 列ピッチ（処理の進行方向＝右）
-const ROW_TOP = -160;   // 並列分岐 上
-const ROW_MID = 0;      // 主系列
-const ROW_BOTTOM = 160; // 並列分岐 下
 
 export interface FlowTemplate {
   key: string;
@@ -43,29 +40,35 @@ interface PhaseFlowOpts {
 }
 
 /**
- * 運用向け11解析を一通り回すパイプラインを生成する。
- * 飛行解析 → 分散飛行経路解析 → (荷重 / 溶融) → (船舶危険 / 落下域) → Pi/Ec
- *   → (RFリンク / 測位衛星) → (軌道寿命 / 経路回転率) → 判定 → 確定
+ * 運用向け 飛行安全解析パイプラインを生成する（依存関係は運用版の標準フローに準拠）。
+ *  飛行解析 → 分散飛行経路解析 → { 軌道上寿命→溶融, 海上船舶危険, 地上Ec,
+ *                                 投棄物落下域, GNSS可視, 射場内建屋危険, RFリンク }
+ *  飛行解析 → 経路回転率解析 → 破片抗力落下予測域解析 → ゲート侵犯可否
+ *  各末端解析 → 判定 → 確定
+ * ※ ラベルは SERVICE_META と一致させる（ノードの解析種別解決に使用）。
  */
 function buildPhaseFlow(opts: PhaseFlowOpts): AnalysisFlowStep[] {
-  const f = uuidv4(), d = uuidv4(), ld = uuidv4(), ab = uuidv4(), sh = uuidv4(),
-    db = uuidv4(), pec = uuidv4(), rf = uuidv4(), gnss = uuidv4(),
-    ol = uuidv4(), prr = uuidv4(), J = uuidv4(), end = uuidv4();
+  const f = uuidv4(), df = uuidv4(), prr = uuidv4(), ddf = uuidv4(),
+    ol = uuidv4(), ab = uuidv4(), sh = uuidv4(), pec = uuidv4(), di = uuidv4(),
+    gn = uuidv4(), lsb = uuidv4(), rf = uuidv4(), gi = uuidv4(), J = uuidv4(), end = uuidv4();
   const base = { status: 'pending' as const, notes: '', dataBindings: [] };
+  const X = (c: number) => COL_W * c;
   return [
-    { id: f,    order: 0,  label: '飛行解析',         kind: 'normal',   position: { x: COL_W * 0, y: ROW_MID },    nextStepIds: [d], ...base },
-    { id: d,    order: 1,  label: '分散飛行経路解析',  kind: 'normal',   position: { x: COL_W * 1, y: ROW_MID },    nextStepIds: [ld, ab], ...base },
-    { id: ld,   order: 2,  label: '荷重解析',         kind: 'normal',   position: { x: COL_W * 2, y: ROW_TOP },    nextStepIds: [sh], ...base },
-    { id: ab,   order: 3,  label: '溶融解析',         kind: 'normal',   position: { x: COL_W * 2, y: ROW_BOTTOM }, nextStepIds: [db], ...base },
-    { id: sh,   order: 4,  label: '海上船舶危険解析',  kind: 'normal',   position: { x: COL_W * 3, y: ROW_TOP },    nextStepIds: [pec], ...base },
-    { id: db,   order: 5,  label: '投棄物落下域解析',  kind: 'normal',   position: { x: COL_W * 3, y: ROW_BOTTOM }, nextStepIds: [pec], ...base },
-    { id: pec,  order: 6,  label: 'Pi/Ec解析',        kind: 'normal',   position: { x: COL_W * 4, y: ROW_MID },    nextStepIds: [rf, gnss], ...base },
-    { id: rf,   order: 7,  label: 'RFリンク解析',      kind: 'normal',   position: { x: COL_W * 5, y: ROW_TOP },    nextStepIds: [ol], ...base },
-    { id: gnss, order: 8,  label: '測位衛星通信解析',  kind: 'normal',   position: { x: COL_W * 5, y: ROW_BOTTOM }, nextStepIds: [prr], ...base },
-    { id: ol,   order: 9,  label: '軌道上寿命解析',    kind: 'normal',   position: { x: COL_W * 6, y: ROW_TOP },    nextStepIds: [J], ...base },
-    { id: prr,  order: 10, label: '経路回転率解析',    kind: 'normal',   position: { x: COL_W * 6, y: ROW_BOTTOM }, nextStepIds: [J], ...base },
-    { id: J,    order: 11, label: opts.decisionLabel, kind: 'decision', position: { x: COL_W * 7, y: ROW_MID },    nextStepIds: [end], loopBackToStepId: f, loopCondition: opts.decisionCondition, ...base },
-    { id: end,  order: 12, label: opts.endLabel,      kind: 'normal',   position: { x: COL_W * 8, y: ROW_MID },    nextStepIds: [], ...base },
+    { id: f,   order: 0,  label: '飛行解析',              kind: 'normal',   position: { x: X(0), y: 0 },    nextStepIds: [df, prr], ...base },
+    { id: df,  order: 1,  label: '分散飛行経路解析',       kind: 'normal',   position: { x: X(1), y: -120 }, nextStepIds: [ol, sh, pec, di, gn, lsb, rf], ...base },
+    { id: ol,  order: 2,  label: '軌道上寿命解析',         kind: 'normal',   position: { x: X(2), y: -430 }, nextStepIds: [ab], ...base },
+    { id: ab,  order: 3,  label: '溶融解析',              kind: 'normal',   position: { x: X(3), y: -430 }, nextStepIds: [J], ...base },
+    { id: sh,  order: 4,  label: '海上船舶危険解析',       kind: 'normal',   position: { x: X(2), y: -300 }, nextStepIds: [J], ...base },
+    { id: pec, order: 5,  label: '地上落下傷害予測数解析', kind: 'normal',   position: { x: X(2), y: -170 }, nextStepIds: [J], ...base },
+    { id: di,  order: 6,  label: '投棄物落下域解析',       kind: 'normal',   position: { x: X(2), y: -40 },  nextStepIds: [J], ...base },
+    { id: gn,  order: 7,  label: 'GNSS可視解析/COLA',      kind: 'normal',   position: { x: X(2), y: 90 },   nextStepIds: [J], ...base },
+    { id: lsb, order: 8,  label: '射場内建屋危険解析',     kind: 'normal',   position: { x: X(2), y: 220 },  nextStepIds: [J], ...base },
+    { id: rf,  order: 9,  label: 'RFリンク解析',           kind: 'normal',   position: { x: X(2), y: 350 },  nextStepIds: [J], ...base },
+    { id: prr, order: 10, label: '経路回転率解析',         kind: 'normal',   position: { x: X(1), y: 540 },  nextStepIds: [ddf], ...base },
+    { id: ddf, order: 11, label: '破片抗力落下予測域解析', kind: 'normal',   position: { x: X(2), y: 540 },  nextStepIds: [gi], ...base },
+    { id: gi,  order: 12, label: 'ゲート侵犯可否',         kind: 'normal',   position: { x: X(3), y: 540 },  nextStepIds: [J], ...base },
+    { id: J,   order: 13, label: opts.decisionLabel,       kind: 'decision', position: { x: X(4), y: 0 },   nextStepIds: [end], loopBackToStepId: f, loopCondition: opts.decisionCondition, ...base },
+    { id: end, order: 14, label: opts.endLabel,            kind: 'normal',   position: { x: X(5), y: 0 },   nextStepIds: [], ...base },
   ];
 }
 
