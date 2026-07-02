@@ -279,8 +279,15 @@ const AeroResultsView: React.FC<{ analysisCase: AnalysisCase }> = ({ analysisCas
 // 汎用解析結果ビュー（既存）
 // ============================================================
 
-export const AnalysisResultsView: React.FC = () => {
-  const { analysisCaseId, analysisService } = useAppStore();
+interface AnalysisResultsViewProps {
+  /** モーダル等から直接渡す場合に使用。省略時は appStore の値を参照。 */
+  caseId?: string;
+  serviceTypeOverride?: AnalysisServiceType;
+}
+
+export const AnalysisResultsView: React.FC<AnalysisResultsViewProps> = ({ caseId: propCaseId, serviceTypeOverride }) => {
+  const { analysisCaseId: storeCaseId, analysisService } = useAppStore();
+  const analysisCaseId = propCaseId ?? storeCaseId;
   const getCase = useAnalysisStore((s) => s.getCase);
   const getResultsForCase = useAnalysisStore((s) => s.getResultsForCase);
   const addResult = useAnalysisStore((s) => s.addResult);
@@ -296,7 +303,7 @@ export const AnalysisResultsView: React.FC = () => {
   // 表示モード切替: table = 編集可能テーブル / document = 報告書ドキュメント
   const [viewMode, setViewMode] = useState<'table' | 'document'>('table');
 
-  const serviceType = analysisService as AnalysisServiceType;
+  const serviceType = (serviceTypeOverride ?? analysisService) as AnalysisServiceType;
   const meta = serviceType ? SERVICE_META[serviceType] : null;
   const analysisCase = analysisCaseId ? getCase(analysisCaseId) : null;
   const results = analysisCaseId ? getResultsForCase(analysisCaseId) : [];

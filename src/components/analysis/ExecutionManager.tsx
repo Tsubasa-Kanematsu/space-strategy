@@ -3,6 +3,7 @@ import { useAnalysisStore } from '../../stores/analysisStore';
 import { useAnalysisFlowStore } from '../../stores/analysisFlowStore';
 import { SERVICE_META } from './analysisServiceMeta';
 import { resolveSeedFromLabel } from './flow/flowTemplates';
+import { ensureAnalysisCaseForStep } from './analysisCaseSetup';
 import type { AnalysisFlow, AnalysisFlowStep, AnalysisServiceType } from '../../types';
 
 const STATUS_META: Record<AnalysisFlowStep['status'], { label: string; cls: string }> = {
@@ -16,11 +17,21 @@ const STATUS_META: Record<AnalysisFlowStep['status'], { label: string; cls: stri
  * 条件設定タブで組んだフローの各解析について、条件状態・実行状態を表で見て、
  * 個別実行/全実行/リセットを行う。
  */
-export const ExecutionManager: React.FC<{ flow: AnalysisFlow; onGoConditions: () => void }> = ({ flow, onGoConditions }) => {
+export const ExecutionManager: React.FC<{ flow: AnalysisFlow; massCaseId?: string | null; onGoConditions: () => void }> = ({ flow, massCaseId = null, onGoConditions }) => {
   const cases = useAnalysisStore((s) => s.cases);
   const runFullFlow = useAnalysisFlowStore((s) => s.runFullFlow);
   const runSingleStep = useAnalysisFlowStore((s) => s.runSingleStep);
   const resetAllSteps = useAnalysisFlowStore((s) => s.resetAllSteps);
+
+  // 実行前に解析ケースを用意（上流連結込み）→ 完了時に結果が自動登録される
+  const runAll = () => {
+    flow.steps.forEach((s) => ensureAnalysisCaseForStep(flow.id, s.id, massCaseId));
+    runFullFlow(flow.id);
+  };
+  const runOne = (stepId: string) => {
+    ensureAnalysisCaseForStep(flow.id, stepId, massCaseId);
+    runSingleStep(flow.id, stepId);
+  };
 
   const steps = [...flow.steps].filter((s) => (s.kind ?? 'normal') === 'normal').sort((a, b) => a.order - b.order);
   const total = steps.length;
@@ -60,7 +71,7 @@ export const ExecutionManager: React.FC<{ flow: AnalysisFlow; onGoConditions: ()
         <span className="fw-semibold"><i className="bi bi-play-circle me-1 text-primary" />実行管理</span>
         <span className={`badge ${allDone ? 'bg-success' : done > 0 ? 'bg-warning text-dark' : 'bg-secondary'}`}>{done}/{total} 完了</span>
         {running && <span className="badge bg-warning text-dark"><i className="bi bi-arrow-repeat me-1" />実行中</span>}
-        <button className="btn btn-sm btn-primary ms-auto" onClick={() => runFullFlow(flow.id)} disabled={running}>
+        <button className="btn btn-sm btn-primary ms-auto" onClick={runAll} disabled={running}>
           <i className="bi bi-play-fill me-1" />全解析を実行
         </button>
         <button
@@ -109,7 +120,7 @@ export const ExecutionManager: React.FC<{ flow: AnalysisFlow; onGoConditions: ()
                   <td className="text-end">
                     <button
                       className="btn btn-sm btn-outline-primary py-0"
-                      onClick={() => runSingleStep(flow.id, step.id)}
+                      onClick={() => runOne(step.id)}
                       disabled={running}
                       title={step.status === 'done' ? '再実行' : '実行'}
                     >

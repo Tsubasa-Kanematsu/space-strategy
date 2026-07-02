@@ -6,6 +6,25 @@ import type { AnalysisFlow, AnalysisFlowStep, DataBinding } from '../types';
 import { useAnalysisStore } from './analysisStore';
 import { useMassCaseStore } from './massCaseStore';
 import { getPredecessorIds, getRootStepIds } from '../components/analysis/flow/flowUtils';
+import { resultRowsForService } from '../lib/resultTemplates';
+
+/**
+ * ステップ完了時に代表結果を自動登録する（実行シミュレーション）。
+ * 既存結果はいったんクリアして再生成（再実行で値が更新される体験）。
+ * 解析ケース未紐付けのステップは何もしない。
+ */
+function emitResultsForStep(flowId: string, stepId: string): void {
+  const flow = useAnalysisFlowStore.getState().flows.find((f) => f.id === flowId);
+  const step = flow?.steps.find((s) => s.id === stepId);
+  if (!step?.analysisCaseId) return;
+  const a = useAnalysisStore.getState();
+  const ac = a.cases.find((c) => c.id === step.analysisCaseId);
+  if (!ac) return;
+  a.getResultsForCase(ac.id).forEach((r) => a.deleteResult(r.id));
+  resultRowsForService(ac.serviceType).forEach(([label, value, unit, notes]) =>
+    a.addResult({ analysisCaseId: ac.id, label, value, unit, notes })
+  );
+}
 
 interface AnalysisFlowStore {
   flows: AnalysisFlow[];
@@ -266,6 +285,7 @@ export const useAnalysisFlowStore = create<AnalysisFlowStore>()(
                   }
             ),
           }));
+          emitResultsForStep(flowId, stepId);
         }, STEP_DURATION_MS);
       },
 
@@ -322,6 +342,7 @@ export const useAnalysisFlowStore = create<AnalysisFlowStore>()(
                       }
                 ),
               }));
+              emitResultsForStep(flowId, stepId);
             }, STEP_DURATION_MS);
           }, i * STEP_DURATION_MS);
         });

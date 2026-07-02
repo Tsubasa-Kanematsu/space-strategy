@@ -6,7 +6,8 @@ import { CommonParams } from './CommonParams';
 import { AnalysisConditionModal } from './AnalysisConditionsSection';
 import { ExecutionManager } from './ExecutionManager';
 import { AnalysisPalette } from './AnalysisPalette';
-import type { AnalysisFlow, AnalysisEntry } from '../../types';
+import type { AnalysisFlow, AnalysisEntry, AnalysisServiceType } from '../../types';
+import { AnalysisResultsView } from './AnalysisResultsView';
 import { FlowCanvas } from './flow/FlowCanvas';
 import { ExecutionStatusBar } from './flow/ExecutionStatusBar';
 import { BUILTIN_FLOW_TEMPLATES, customToFlowTemplate, resolveSeedFromLabel, type FlowTemplate } from './flow/flowTemplates';
@@ -199,10 +200,20 @@ const FlowCard: React.FC<{
  * 解析フロー詳細画面: appStore.analysisFlowId で指定された 1 フローを編集する。
  * 一覧画面 (AnalysisFlowList) からクリックして遷移する想定。
  */
-/** フェーズページ「結果」タブ: 解析ステップの進捗一覧＋ドメイン注記。 */
+/**
+ * フェーズページ「結果」タブ: 解析ごとの結果ハブ。
+ * 各解析の主要結果値をインライン表示し、行クリックで rocketDB 譲りの
+ * 結果ビュー（飛行解析=グラフダッシュボード / 他=数値表・報告書）をモーダルで開く。
+ */
 const PhaseResults: React.FC<{ flow: AnalysisFlow; entry: AnalysisEntry; onGoExecution: () => void }> = ({ flow, entry, onGoExecution }) => {
   const phase = entry.kind;
-  const steps = [...flow.steps].sort((a, b) => a.order - b.order);
+  const cases = useAnalysisStore((s) => s.cases);
+  const allResults = useAnalysisStore((s) => s.results);
+  const [detail, setDetail] = useState<{ caseId: string; service: AnalysisServiceType } | null>(null);
+
+  const steps = [...flow.steps]
+    .filter((s) => (s.kind ?? 'normal') === 'normal')
+    .sort((a, b) => a.order - b.order);
   const total = steps.length;
   const done = steps.filter((s) => s.status === 'done').length;
   const allDone = total > 0 && done === total;
@@ -211,34 +222,76 @@ const PhaseResults: React.FC<{ flow: AnalysisFlow; entry: AnalysisEntry; onGoExe
     return (
       <div className="text-center text-muted py-5">
         <i className="bi bi-graph-up fs-1 d-block mb-2 opacity-25" />
-        解析ステップがありません。「実行管理」タブでテンプレートからフローを作成してください。
+        解析ステップがありません。「条件設定」タブでフローを作成してください。
         <div className="mt-3">
           <button className="btn btn-outline-primary btn-sm" onClick={onGoExecution}>
-            <i className="bi bi-diagram-3 me-1" />実行管理へ
+            <i className="bi bi-play-circle me-1" />実行管理へ
           </button>
         </div>
       </div>
     );
   }
 
+  const detailCase = detail ? cases.find((c) => c.id === detail.caseId) : null;
+
   return (
     <div>
       <div className="d-flex align-items-center gap-2 mb-3">
         <span className="fw-semibold"><i className="bi bi-graph-up me-1 text-primary" />解析結果</span>
         <span className={`badge ${allDone ? 'bg-success' : done > 0 ? 'bg-warning text-dark' : 'bg-secondary'}`}>{done}/{total} 完了</span>
+        <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>行をクリックすると詳細（グラフ・数値表・報告書）を表示</span>
       </div>
+
       <div className="border rounded-3 mb-3">
-        {steps.map((s, i) => (
-          <div key={s.id} className={`d-flex align-items-center px-3 py-2 ${i < steps.length - 1 ? 'border-bottom' : ''}`}>
-            <span className="small flex-grow-1">{s.label || '(無題ステップ)'}</span>
-            {s.status === 'done'
-              ? <span className="badge bg-success">完了</span>
-              : s.status === 'in_progress'
-                ? <span className="badge bg-warning text-dark">実施中</span>
-                : <span className="badge bg-light text-muted border">未実施</span>}
-          </div>
-        ))}
+        {steps.map((s, i) => {
+          const ac = s.analysisCaseId ? cases.find((c) => c.id === s.analysisCaseId) : null;
+          const service = ac?.serviceType ?? null;
+          const meta = service ? SERVICE_META[service] : null;
+          const rows = ac ? allResults.filter((r) => r.analysisCaseId === ac.id) : [];
+          const clickable = !!(ac && service);
+          const isFlight = service === 'flightAnalysis';
+          return (
+            <div
+              key={s.id}
+              className={`px-3 py-2 ${i < steps.length - 1 ? 'border-bottom' : ''}`}
+              style={clickable ? { cursor: 'pointer' } : undefined}
+              onClick={clickable ? () => setDetail({ caseId: ac!.id, service: service! }) : undefined}
+              onMouseEnter={(e) => { if (clickable) e.currentTarget.style.background = '#f6f9ff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
+            >
+              <div className="d-flex align-items-center">
+                <span className="d-inline-flex align-items-center justify-content-center rounded-2 me-2" style={{ width: 26, height: 26, background: '#05966918', color: '#059669', flexShrink: 0 }}>
+                  <i className={`bi bi-${meta?.icon ?? 'cpu'}`} style={{ fontSize: '0.85rem' }} />
+                </span>
+                <span className="fw-medium small">{meta?.label ?? s.label}</span>
+                {isFlight && <span className="badge bg-primary-subtle text-primary ms-2" style={{ fontSize: '0.65rem' }}><i className="bi bi-graph-up me-1" />グラフ</span>}
+                <span className="ms-auto d-flex align-items-center gap-2">
+                  {s.status === 'done'
+                    ? <span className="badge bg-success">完了</span>
+                    : s.status === 'in_progress'
+                      ? <span className="badge bg-warning text-dark">実行中</span>
+                      : <span className="badge bg-light text-muted border">未実施</span>}
+                  {clickable && <i className="bi bi-chevron-right text-muted" style={{ fontSize: '0.75rem' }} />}
+                </span>
+              </div>
+              {/* 主要結果のインライン表示（最大3件） */}
+              {rows.length > 0 && (
+                <div className="d-flex flex-wrap gap-3 mt-1" style={{ paddingLeft: 34 }}>
+                  {rows.slice(0, 3).map((r) => (
+                    <span key={r.id} className="small">
+                      <span className="text-muted">{r.label}: </span>
+                      <span className="font-monospace fw-semibold">{r.value}</span>
+                      {r.unit && <span className="text-muted ms-1">{r.unit}</span>}
+                    </span>
+                  ))}
+                  {rows.length > 3 && <span className="small text-muted">…他 {rows.length - 3} 件</span>}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+
       <div className={`alert ${allDone ? 'alert-success' : 'alert-secondary'} py-2 px-3 small mb-0`}>
         <i className="bi bi-info-circle me-1" />
         {phase === 'PT'
@@ -251,6 +304,29 @@ const PhaseResults: React.FC<{ flow: AnalysisFlow; entry: AnalysisEntry; onGoExe
                 : 'FT解析（飛行時）の結果です。PT解析への包含を確認します。')
             : (allDone ? 'この解析が完了しました。' : 'この解析の結果です。')}
       </div>
+
+      {/* 結果詳細モーダル（rocketDB の結果ビューを埋め込み） */}
+      {detail && detailCase && (
+        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-fullscreen">
+            <div className="modal-content">
+              <div className="modal-header py-2">
+                <h5 className="modal-title">
+                  <i className={`bi bi-${SERVICE_META[detail.service].icon} me-2 text-primary`} />
+                  {SERVICE_META[detail.service].label} の結果
+                  <small className="text-muted ms-2" style={{ fontSize: '0.8rem' }}>{detailCase.name}</small>
+                </h5>
+                <button className="btn btn-primary btn-sm" onClick={() => setDetail(null)}>
+                  <i className="bi bi-check-lg me-1" />閉じる
+                </button>
+              </div>
+              <div className="modal-body d-flex flex-column" style={{ overflow: 'auto' }}>
+                <AnalysisResultsView caseId={detail.caseId} serviceTypeOverride={detail.service} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -374,7 +450,7 @@ export const AnalysisFlowEditor: React.FC = () => {
           )}
 
           {phaseTab === 'execution' && (
-            <ExecutionManager flow={flow} onGoConditions={() => setPhaseTab('conditions')} />
+            <ExecutionManager flow={flow} massCaseId={ownerEntry.massCaseId ?? null} onGoConditions={() => setPhaseTab('conditions')} />
           )}
 
           {phaseTab === 'results' && (

@@ -12,11 +12,22 @@ import { useAppStore } from '../stores/appStore';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { useSizingStore } from '../stores/sizingStore';
 import { useMassCaseStore } from '../stores/massCaseStore';
+import { useVehicleUnitStore } from '../stores/vehicleUnitStore';
+import { useProjectStore } from '../stores/projectStore';
+import { useMasterDataStore } from '../stores/masterDataStore';
+import { useApplicationStore } from '../stores/applicationStore';
 import { SERVICE_META } from '../components/analysis/analysisServiceMeta';
-import { BUILTIN_FLOW_TEMPLATES, resolveSeedFromLabel } from '../components/analysis/flow/flowTemplates';
+import {
+  BUILTIN_FLOW_TEMPLATES,
+  resolveSeedFromLabel,
+  PT_TEMPLATE_KEY,
+  FT_TEMPLATE_KEY,
+} from '../components/analysis/flow/flowTemplates';
+import { MASTER_CATEGORIES } from '../components/analysis/masterCatalog';
 import { FLIGHT_VARIABLES, findFlightVariable } from '../components/analysis/charts/flightVariables';
+import { buildApplicationData } from '../utils/applicationGen';
 import type { AppView } from '../types';
-import type { AnalysisFlowStep } from '../types';
+import type { AnalysisFlowStep, AnalysisEntry, VehicleUnit, PhaseStatus } from '../types';
 
 // ─── Gemini FunctionDeclaration 型 ──────────────────────────────────
 
@@ -313,7 +324,9 @@ export const FLOW_TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
   },
   {
     name: 'navigate',
-    description: 'アプリの画面を切り替える。例: "analysisFlow"=解析フロー一覧, "projects"=プロジェクト一覧。',
+    description:
+      'アプリの画面を切り替える。例: "analysisFlow"=解析フロー一覧, "projects"=プロジェクト一覧, ' +
+      '"vehicleUnits"=号機一覧, "masterDataHub"=マスタデータ, "applications"=申請書一覧, "massCases"=質量諸元データ。',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -330,10 +343,169 @@ export const FLOW_TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
             'masterDataHub',
             'antennaData',
             'pluginCases',
+            'vehicleUnits',
+            'vehicleUnitDetail',
+            'applications',
+            'applicationDetail',
           ],
         },
       },
       required: ['view'],
+    },
+  },
+  // ─── 号機・共通パラメータ・マスタ・申請書 ────────────────────────────
+  {
+    name: 'list_projects',
+    description: 'プロジェクト一覧 (id, name) を返す。',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'list_vehicle_units',
+    description: '号機一覧を返す (unitNo/missionName/status と解析の要約)。projectId で絞り込み可。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        projectId: { type: 'STRING', description: 'プロジェクトID (省略時は全件)' },
+      },
+    },
+  },
+  {
+    name: 'get_vehicle_unit',
+    description: '号機1件の詳細を返す。unitId または unitNo で指定。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        unitId: { type: 'STRING', description: '号機ID' },
+        unitNo: { type: 'STRING', description: '号機番号 (例: "1")' },
+      },
+    },
+  },
+  {
+    name: 'add_unit_analysis',
+    description: '号機にカスタム解析を追加する。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        unitId: { type: 'STRING', description: '号機ID' },
+        name: { type: 'STRING', description: '解析名 (例: "追加解析")' },
+      },
+      required: ['unitId', 'name'],
+    },
+  },
+  {
+    name: 'open_unit_analysis',
+    description: '号機の解析のフロー画面を開く。フロー未作成なら kind に応じたテンプレートで作成して紐付ける。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        unitId: { type: 'STRING', description: '号機ID' },
+        analysisName: { type: 'STRING', description: '解析名 (例: "PT解析")' },
+      },
+      required: ['unitId', 'analysisName'],
+    },
+  },
+  {
+    name: 'get_common_params',
+    description: '現在開いているフローの所有解析エントリの共通パラメータ (質量諸元ケース・マスタ選択) を返す。',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'set_common_mass_case',
+    description: '現在フローの所有解析エントリに質量諸元ケースを設定する。massCaseName か massCaseId のどちらかで指定。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        massCaseName: { type: 'STRING', description: '質量諸元ケース名' },
+        massCaseId: { type: 'STRING', description: '質量諸元ケースID' },
+      },
+    },
+  },
+  {
+    name: 'set_common_master_selection',
+    description: '現在フローの所有解析エントリのマスタ選択を設定する。names はマスタレコード名で指定 (list_master_records で確認)。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        category: {
+          type: 'STRING',
+          description: 'マスタ種別',
+          enum: MASTER_CATEGORIES.map((c) => c.key),
+        },
+        names: {
+          type: 'ARRAY',
+          description: '選択するレコード名の配列',
+          items: { type: 'STRING' },
+        },
+      },
+      required: ['category', 'names'],
+    },
+  },
+  {
+    name: 'list_master_records',
+    description: '指定マスタ種別のレコード一覧 (id, name) を返す。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        category: {
+          type: 'STRING',
+          description: 'マスタ種別',
+          enum: MASTER_CATEGORIES.map((c) => c.key),
+        },
+      },
+      required: ['category'],
+    },
+  },
+  {
+    name: 'list_mass_cases',
+    description: '質量諸元ケース一覧 (id, name, 部品数) を返す。projectId で絞り込み可。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        projectId: { type: 'STRING', description: 'プロジェクトID (省略時は全件)' },
+      },
+    },
+  },
+  {
+    name: 'get_analysis_results',
+    description: '解析ケースの結果一覧 (label, value, unit, notes) を返す。caseId 省略時は現在画面のケース。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        caseId: { type: 'STRING', description: '解析ケースID (省略時は現在画面のケース)' },
+      },
+    },
+  },
+  {
+    name: 'list_applications',
+    description: '申請書一覧 (unitNo, missionName, status) を返す。',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'generate_application',
+    description: '号機の申請書を生成 (既存があれば本文更新) して applicationId を返す。画面遷移はしない。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        unitId: { type: 'STRING', description: '号機ID' },
+      },
+      required: ['unitId'],
+    },
+  },
+  {
+    name: 'set_unit_analysis_status',
+    description: '号機の解析エントリのステータスを変更する。',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        unitId: { type: 'STRING', description: '号機ID' },
+        analysisName: { type: 'STRING', description: '解析名 (例: "PT解析")' },
+        status: {
+          type: 'STRING',
+          enum: ['未着手', '実施中', '完了'],
+          description: '新しいステータス',
+        },
+      },
+      required: ['unitId', 'analysisName', 'status'],
     },
   },
 ];
@@ -778,6 +950,358 @@ function toolRemoveFlightCustomChart(args: { caseId?: string; chartId: string })
   return { ok: true, result: { caseId: r.caseId, removed: args.chartId, remaining: next.length } };
 }
 
+// ─── 号機・共通パラメータ・マスタ・申請書ツール ──────────────────────
+
+/** unitId または unitNo で号機を解決する。 */
+function findUnit(args: { unitId?: string; unitNo?: string }): VehicleUnit | undefined {
+  const units = useVehicleUnitStore.getState().units;
+  if (args.unitId) return units.find((u) => u.id === args.unitId);
+  if (args.unitNo) return units.find((u) => u.unitNo === args.unitNo);
+  return undefined;
+}
+
+/** 号機内の解析エントリを名前で解決する（完全一致優先、次に部分一致）。 */
+function findEntry(unit: VehicleUnit, analysisName: string): AnalysisEntry | undefined {
+  return (
+    unit.analyses.find((a) => a.name === analysisName) ??
+    unit.analyses.find((a) => a.name.includes(analysisName))
+  );
+}
+
+/** flowId を持つ号機/解析エントリ（共通パラメータの所有者）を探す。 */
+function findFlowOwner(flowId: string): { unit: VehicleUnit; entry: AnalysisEntry } | null {
+  for (const u of useVehicleUnitStore.getState().units) {
+    const entry = u.analyses.find((a) => a.flowId === flowId);
+    if (entry) return { unit: u, entry };
+  }
+  return null;
+}
+
+/** 現在フローの所有エントリを取得（無ければエラー）。 */
+function requireFlowOwner():
+  | { unit: VehicleUnit; entry: AnalysisEntry; flowId: string }
+  | { error: string } {
+  const r = requireFlowId();
+  if ('error' in r) return r;
+  const owner = findFlowOwner(r.flowId);
+  if (!owner) {
+    return { error: 'このフローを所有する号機の解析エントリが見つかりません。号機の解析から開いたフローで使ってください。' };
+  }
+  return { ...owner, flowId: r.flowId };
+}
+
+/** マスタ種別 key → masterDataStore のレコード配列。 */
+function masterRecordsFor(category: string): Array<{ id: string; name: string }> | null {
+  const s = useMasterDataStore.getState();
+  switch (category) {
+    case 'shape': return s.shapes;
+    case 'aero': return s.aeroCoeffs;
+    case 'propulsion': return s.propulsions;
+    case 'wind': return s.winds;
+    case 'debris': return s.debris;
+    case 'failure': return s.failureRates;
+    case 'vAntenna': return s.antennas.filter((a) => a.type === 'rocket');
+    case 'gAntenna': return s.antennas.filter((a) => a.type === 'ground');
+    default: return null;
+  }
+}
+
+function toolListProjects(): ToolResult {
+  const projects = useProjectStore.getState().projects;
+  return { ok: true, result: projects.map((p) => ({ id: p.id, name: p.name })) };
+}
+
+function summarizeUnit(u: VehicleUnit) {
+  return {
+    id: u.id,
+    projectId: u.projectId,
+    unitNo: u.unitNo,
+    missionName: u.missionName,
+    status: u.status,
+    analyses: u.analyses.map((a) => ({
+      name: a.name,
+      kind: a.kind,
+      status: a.status,
+      hasFlow: !!a.flowId,
+    })),
+  };
+}
+
+function toolListVehicleUnits(args: { projectId?: string }): ToolResult {
+  const units = useVehicleUnitStore
+    .getState()
+    .units.filter((u) => !args.projectId || u.projectId === args.projectId);
+  return { ok: true, result: units.map(summarizeUnit) };
+}
+
+function toolGetVehicleUnit(args: { unitId?: string; unitNo?: string }): ToolResult {
+  if (!args.unitId && !args.unitNo) return { ok: false, error: 'unitId か unitNo のどちらかを指定してください。' };
+  const unit = findUnit(args);
+  if (!unit) return { ok: false, error: `号機が見つかりません: ${args.unitId ?? args.unitNo}` };
+  const massCases = useMassCaseStore.getState().cases;
+  return {
+    ok: true,
+    result: {
+      id: unit.id,
+      projectId: unit.projectId,
+      unitNo: unit.unitNo,
+      missionName: unit.missionName,
+      launchDate: unit.launchDate,
+      status: unit.status,
+      memo: unit.memo ?? '',
+      analyses: unit.analyses.map((a) => ({
+        id: a.id,
+        name: a.name,
+        kind: a.kind,
+        status: a.status,
+        flowId: a.flowId ?? null,
+        massCaseId: a.massCaseId ?? null,
+        massCaseName: a.massCaseId ? massCases.find((c) => c.id === a.massCaseId)?.name ?? null : null,
+        masterSelections: a.masterSelections ?? {},
+      })),
+    },
+  };
+}
+
+function toolAddUnitAnalysis(args: { unitId: string; name: string }): ToolResult {
+  const unit = findUnit({ unitId: args.unitId });
+  if (!unit) return { ok: false, error: `号機が見つかりません: ${args.unitId}` };
+  const name = (args.name ?? '').trim();
+  if (!name) return { ok: false, error: 'name は必須です。' };
+  const created = useVehicleUnitStore.getState().addAnalysis(unit.id, {
+    name,
+    icon: 'graph-up',
+    kind: 'custom',
+    status: '未着手',
+  });
+  if (!created) return { ok: false, error: '解析の追加に失敗しました。' };
+  return {
+    ok: true,
+    result: { entryId: created.id, name: created.name, message: `${unit.unitNo}号機に解析「${name}」を追加しました。` },
+  };
+}
+
+function toolOpenUnitAnalysis(args: { unitId: string; analysisName: string }): ToolResult {
+  const unit = findUnit({ unitId: args.unitId });
+  if (!unit) return { ok: false, error: `号機が見つかりません: ${args.unitId}` };
+  const entry = findEntry(unit, args.analysisName);
+  if (!entry) {
+    return {
+      ok: false,
+      error: `解析「${args.analysisName}」が見つかりません。この号機の解析: ${unit.analyses.map((a) => a.name).join(', ')}`,
+    };
+  }
+
+  let fid = entry.flowId;
+  let createdFlow = false;
+  if (!fid) {
+    const tplKey = entry.kind === 'PT' ? PT_TEMPLATE_KEY : entry.kind === 'FT' ? FT_TEMPLATE_KEY : null;
+    const tpl = tplKey ? BUILTIN_FLOW_TEMPLATES.find((t) => t.key === tplKey) : null;
+    const f = useAnalysisFlowStore.getState().addFlow({
+      projectId: unit.projectId,
+      name: `${unit.unitNo}号機 ${entry.name} 解析フロー`,
+      steps: tpl ? tpl.build() : [],
+    });
+    fid = f.id;
+    useVehicleUnitStore.getState().updateAnalysis(unit.id, entry.id, { flowId: fid });
+    createdFlow = true;
+  }
+
+  useAppStore.getState().navigate('analysisFlowDetail', { analysisFlowId: fid, projectId: unit.projectId });
+  return {
+    ok: true,
+    result: {
+      flowId: fid,
+      message: `${unit.unitNo}号機「${entry.name}」のフローを開きました${createdFlow ? '（テンプレートから新規作成）' : ''}。`,
+    },
+  };
+}
+
+function toolGetCommonParams(): ToolResult {
+  const r = requireFlowOwner();
+  if ('error' in r) return { ok: false, error: r.error };
+  const { unit, entry } = r;
+
+  const massCase = entry.massCaseId
+    ? useMassCaseStore.getState().cases.find((c) => c.id === entry.massCaseId)
+    : undefined;
+
+  const selections: Record<string, Array<{ id: string; name: string }>> = {};
+  for (const cat of MASTER_CATEGORIES) {
+    const ids = entry.masterSelections?.[cat.key] ?? [];
+    if (ids.length === 0) continue;
+    const records = masterRecordsFor(cat.key) ?? [];
+    selections[cat.key] = ids.map((id) => ({ id, name: records.find((x) => x.id === id)?.name ?? '(不明)' }));
+  }
+
+  return {
+    ok: true,
+    result: {
+      unitNo: unit.unitNo,
+      analysisName: entry.name,
+      massCaseId: entry.massCaseId ?? null,
+      massCaseName: massCase?.name ?? null,
+      masterSelections: selections,
+    },
+  };
+}
+
+function toolSetCommonMassCase(args: { massCaseName?: string; massCaseId?: string }): ToolResult {
+  const r = requireFlowOwner();
+  if ('error' in r) return { ok: false, error: r.error };
+  const { unit, entry } = r;
+
+  if (!args.massCaseId && !args.massCaseName) {
+    return { ok: false, error: 'massCaseName か massCaseId のどちらかを指定してください。' };
+  }
+  const cases = useMassCaseStore.getState().cases;
+  const target = args.massCaseId
+    ? cases.find((c) => c.id === args.massCaseId)
+    : cases.find((c) => c.name === args.massCaseName) ?? cases.find((c) => c.name.includes(args.massCaseName!));
+  if (!target) {
+    return {
+      ok: false,
+      error: `質量諸元ケースが見つかりません: ${args.massCaseId ?? args.massCaseName}。list_mass_cases で確認してください。`,
+    };
+  }
+
+  useVehicleUnitStore.getState().updateAnalysis(unit.id, entry.id, { massCaseId: target.id });
+  return {
+    ok: true,
+    result: { massCaseId: target.id, message: `${unit.unitNo}号機「${entry.name}」の質量諸元ケースを「${target.name}」に設定しました。` },
+  };
+}
+
+function toolSetCommonMasterSelection(args: { category: string; names: string[] }): ToolResult {
+  const r = requireFlowOwner();
+  if ('error' in r) return { ok: false, error: r.error };
+  const { unit, entry } = r;
+
+  const cat = MASTER_CATEGORIES.find((c) => c.key === args.category);
+  if (!cat) {
+    return { ok: false, error: `未知のマスタ種別: ${args.category}。有効: ${MASTER_CATEGORIES.map((c) => c.key).join(', ')}` };
+  }
+  if (!Array.isArray(args.names)) return { ok: false, error: 'names は文字列配列で指定してください。' };
+
+  const records = masterRecordsFor(cat.key) ?? [];
+  const ids: string[] = [];
+  const missing: string[] = [];
+  for (const name of args.names) {
+    const rec = records.find((x) => x.name === name) ?? records.find((x) => x.name.includes(name));
+    if (rec) ids.push(rec.id);
+    else missing.push(name);
+  }
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      error: `レコードが見つかりません: ${missing.join(', ')}。有効な${cat.label}: ${records.map((x) => x.name).join(', ') || '(なし)'}`,
+    };
+  }
+  if (!cat.multi && ids.length > 1) {
+    return { ok: false, error: `${cat.label} は1件のみ選択可能です。` };
+  }
+
+  const next = { ...(entry.masterSelections ?? {}), [cat.key]: ids };
+  useVehicleUnitStore.getState().updateAnalysis(unit.id, entry.id, { masterSelections: next });
+  return {
+    ok: true,
+    result: {
+      category: cat.key,
+      selected: ids,
+      message: `${unit.unitNo}号機「${entry.name}」の${cat.label}を設定しました（${ids.length}件）。`,
+    },
+  };
+}
+
+function toolListMasterRecords(args: { category: string }): ToolResult {
+  const cat = MASTER_CATEGORIES.find((c) => c.key === args.category);
+  if (!cat) {
+    return { ok: false, error: `未知のマスタ種別: ${args.category}。有効: ${MASTER_CATEGORIES.map((c) => c.key).join(', ')}` };
+  }
+  const records = masterRecordsFor(cat.key) ?? [];
+  return {
+    ok: true,
+    result: { category: cat.key, label: cat.label, records: records.map((x) => ({ id: x.id, name: x.name })) },
+  };
+}
+
+function toolListMassCases(args: { projectId?: string }): ToolResult {
+  const s = useMassCaseStore.getState();
+  const cases = s.cases.filter((c) => !args.projectId || c.projectId === args.projectId);
+  return {
+    ok: true,
+    result: cases.map((c) => ({
+      id: c.id,
+      name: c.name,
+      projectId: c.projectId,
+      componentCount: s.getComponentsForCase(c.id).length,
+    })),
+  };
+}
+
+function toolGetAnalysisResults(args: { caseId?: string }): ToolResult {
+  const r = resolveCaseId(args.caseId);
+  if (!r.ok) return r;
+  const c = useAnalysisStore.getState().cases.find((x) => x.id === r.caseId);
+  if (!c) return { ok: false, error: `解析ケースが見つかりません: ${r.caseId}` };
+  const rows = useAnalysisStore.getState().getResultsForCase(r.caseId);
+  return {
+    ok: true,
+    result: {
+      caseId: c.id,
+      caseName: c.name,
+      serviceType: c.serviceType,
+      results: rows.map((x) => ({ label: x.label, value: x.value, unit: x.unit, notes: x.notes })),
+    },
+  };
+}
+
+function toolListApplications(): ToolResult {
+  const apps = useApplicationStore.getState().applications;
+  return {
+    ok: true,
+    result: apps.map((a) => ({
+      id: a.id,
+      unitNo: a.unitNo,
+      missionName: a.missionName,
+      status: a.status,
+    })),
+  };
+}
+
+function toolGenerateApplication(args: { unitId: string }): ToolResult {
+  const unit = findUnit({ unitId: args.unitId });
+  if (!unit) return { ok: false, error: `号機が見つかりません: ${args.unitId}` };
+  const project = useProjectStore.getState().getProject(unit.projectId);
+  const data = buildApplicationData({ unit, projectName: project?.name ?? '' });
+  const app = useApplicationStore.getState().upsertForUnit(data);
+  return {
+    ok: true,
+    result: { applicationId: app.id, message: `${unit.unitNo}号機の申請書を生成しました（ステータス: ${app.status}）。` },
+  };
+}
+
+function toolSetUnitAnalysisStatus(args: { unitId: string; analysisName: string; status: string }): ToolResult {
+  const unit = findUnit({ unitId: args.unitId });
+  if (!unit) return { ok: false, error: `号機が見つかりません: ${args.unitId}` };
+  const entry = findEntry(unit, args.analysisName);
+  if (!entry) {
+    return {
+      ok: false,
+      error: `解析「${args.analysisName}」が見つかりません。この号機の解析: ${unit.analyses.map((a) => a.name).join(', ')}`,
+    };
+  }
+  const valid: PhaseStatus[] = ['未着手', '実施中', '完了'];
+  if (!valid.includes(args.status as PhaseStatus)) {
+    return { ok: false, error: `status は ${valid.join(' / ')} のいずれかで指定してください。` };
+  }
+  useVehicleUnitStore.getState().updateAnalysis(unit.id, entry.id, { status: args.status as PhaseStatus });
+  return {
+    ok: true,
+    result: { message: `${unit.unitNo}号機「${entry.name}」のステータスを「${args.status}」にしました。` },
+  };
+}
+
 // ─── ディスパッチャ ───────────────────────────────────────────────────
 
 export async function executeTool(
@@ -825,7 +1349,42 @@ export async function executeTool(
       return toolAddFlightCustomChart(args as Parameters<typeof toolAddFlightCustomChart>[0]);
     case 'remove_flight_custom_chart':
       return toolRemoveFlightCustomChart(args as Parameters<typeof toolRemoveFlightCustomChart>[0]);
+    case 'list_projects':
+      return toolListProjects();
+    case 'list_vehicle_units':
+      return toolListVehicleUnits(args as Parameters<typeof toolListVehicleUnits>[0]);
+    case 'get_vehicle_unit':
+      return toolGetVehicleUnit(args as Parameters<typeof toolGetVehicleUnit>[0]);
+    case 'add_unit_analysis':
+      return toolAddUnitAnalysis(args as Parameters<typeof toolAddUnitAnalysis>[0]);
+    case 'open_unit_analysis':
+      return toolOpenUnitAnalysis(args as Parameters<typeof toolOpenUnitAnalysis>[0]);
+    case 'get_common_params':
+      return toolGetCommonParams();
+    case 'set_common_mass_case':
+      return toolSetCommonMassCase(args as Parameters<typeof toolSetCommonMassCase>[0]);
+    case 'set_common_master_selection':
+      return toolSetCommonMasterSelection(args as Parameters<typeof toolSetCommonMasterSelection>[0]);
+    case 'list_master_records':
+      return toolListMasterRecords(args as Parameters<typeof toolListMasterRecords>[0]);
+    case 'list_mass_cases':
+      return toolListMassCases(args as Parameters<typeof toolListMassCases>[0]);
+    case 'get_analysis_results':
+      return toolGetAnalysisResults(args as Parameters<typeof toolGetAnalysisResults>[0]);
+    case 'list_applications':
+      return toolListApplications();
+    case 'generate_application':
+      return toolGenerateApplication(args as Parameters<typeof toolGenerateApplication>[0]);
+    case 'set_unit_analysis_status':
+      return toolSetUnitAnalysisStatus(args as Parameters<typeof toolSetUnitAnalysisStatus>[0]);
     default:
       return { ok: false, error: `未知のツール: ${name}` };
   }
+}
+
+// ── デバッグフック ─────────────────────────────────────────────────────────
+// ブラウザコンソールから AIツールを直接検証できるようにする（デモ用途）。
+//   window.__aiDebug.executeTool('list_vehicle_units', {})
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__aiDebug = { executeTool, FLOW_TOOL_DECLARATIONS };
 }
